@@ -1,0 +1,1175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bitácora vs Tasks · avianca</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --rojo: #D6001C; --rojo-osc: #A50113;
+    --negro: #1A1A1A; --gris: #58595B;
+    --gris-claro: #F4F4F4; --blanco: #FFFFFF;
+    --dorado: #C8A96A;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", -apple-system, Helvetica, Arial,
+         sans-serif; background: var(--gris-claro); color: var(--negro); }
+  header { background: linear-gradient(100deg, var(--negro) 0%, var(--negro) 55%,
+            var(--rojo) 55.2%, var(--rojo-osc) 100%);
+            color: var(--blanco); padding: 28px 40px; }
+  header h1 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: .3px; }
+  header .logo { font-style: italic; font-weight: 800; }
+  header p { margin: 6px 0 0; opacity: .85; font-size: 13px; }
+  main { max-width: 1200px; margin: 0 auto; padding: 26px 20px 60px; }
+
+  .tarjetas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px,1fr));
+               gap: 14px; margin-bottom: 26px; }
+  .tarjeta { background: var(--blanco); border-radius: 10px; padding: 16px 18px;
+              border-top: 4px solid var(--negro);
+              box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .tarjeta.rojo { border-top-color: var(--rojo); }
+  .tarjeta .valor { font-size: 32px; font-weight: 800; }
+  .tarjeta.rojo .valor { color: var(--rojo); }
+  .tarjeta .etq { font-size: 12px; color: var(--gris); margin-top: 2px; }
+
+  .graficos { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px,1fr));
+               gap: 16px; margin-bottom: 30px; }
+  .grafico { background: var(--blanco); border-radius: 10px; padding: 16px;
+              box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+  .grafico h3 { margin: 0 0 10px; font-size: 14px; color: var(--gris);
+                 text-transform: uppercase; letter-spacing: .5px; }
+  .grafico.ancho { grid-column: 1 / -1; }
+  .grafico canvas { max-height: 300px; }
+
+  .seccion { background: var(--blanco); border-radius: 10px; margin-bottom: 14px;
+              box-shadow: 0 1px 4px rgba(0,0,0,.08); overflow: hidden; }
+  .seccion summary { list-style: none; cursor: pointer; display: flex;
+                      align-items: center; gap: 14px; padding: 15px 20px;
+                      user-select: none; }
+  .seccion summary::-webkit-details-marker { display: none; }
+  .seccion summary:hover { background: #faf5f5; }
+  .num { background: var(--negro); color: var(--blanco); min-width: 30px;
+          height: 30px; border-radius: 50%; display: flex; align-items: center;
+          justify-content: center; font-weight: 700; font-size: 14px; }
+  .titulo-sec { flex: 1; font-weight: 600; font-size: 15px; }
+  .titulo-sec small { display: block; font-weight: 400; color: var(--gris);
+                       font-size: 12px; margin-top: 2px; }
+  .badge { min-width: 42px; text-align: center; padding: 5px 12px;
+            border-radius: 999px; font-weight: 700; font-size: 14px; }
+  .badge-alerta { background: var(--rojo); color: var(--blanco); }
+  .badge-ok { background: #e6e6e6; color: var(--gris); }
+  .flecha { color: var(--gris); transition: transform .2s; }
+  details[open] .flecha { transform: rotate(180deg); }
+
+  .tabla-wrap { overflow-x: auto; border-top: 1px solid #eee; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--negro); color: var(--blanco); text-align: left;
+        padding: 9px 14px; font-weight: 600; white-space: nowrap;
+        position: sticky; top: 0; }
+  td { padding: 8px 14px; border-bottom: 1px solid #f0f0f0; }
+  tbody tr:nth-child(even) { background: #fafafa; }
+  tbody tr:hover { background: #fdf1f2; }
+  td.vacio { text-align: center; color: var(--gris); padding: 18px;
+              font-style: italic; }
+  td.coa { font-weight: 700; }
+  td.dias-alto { color: var(--rojo); font-weight: 700; }
+
+  /* Orden por columna */
+  th.ordenable { cursor: pointer; }
+  th.ordenable:hover { background: #333; }
+  th.ordenable::after { content: " ↕"; opacity: .35; font-size: 11px; }
+  th.ordenable.asc::after { content: " ▲"; opacity: 1; }
+  th.ordenable.desc::after { content: " ▼"; opacity: 1; }
+
+  /* Fila de filtros por columna */
+  tr.fila-filtros th { position: sticky; top: 35px; background: #efefef;
+                        padding: 5px 8px; }
+  tr.fila-filtros input { width: 100%; min-width: 60px; padding: 4px 8px;
+      border: 1px solid #ccc; border-radius: 6px; font-size: 12px;
+      font-family: inherit; }
+  tr.fila-filtros input:focus { outline: 2px solid var(--rojo); border-color: var(--rojo); }
+
+  /* Chips de filtro por COA y contador */
+  .chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+            padding: 10px 20px; border-top: 1px solid #eee; }
+  .chips .etiq-chips { font-size: 12px; color: var(--gris); margin-right: 4px; }
+  .chips button { border: 1px solid #ccc; background: var(--blanco);
+      color: var(--negro); border-radius: 999px; padding: 4px 14px;
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .chips button:hover { border-color: var(--rojo); color: var(--rojo); }
+  .chips button.activo { background: var(--rojo); border-color: var(--rojo);
+      color: var(--blanco); }
+  .chips .contador { margin-left: auto; font-size: 12px; color: var(--gris); }
+  footer { text-align: center; color: var(--gris); font-size: 12px;
+            padding: 20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="logo">avianca</span> · Bitácora AQD vs Planner Tasks</h1>
+  <p>Bitácora: Occurrence type FLT · State: All Active · Year to date ·
+     COAs: AVA, GLG, TAI, LRC, AVR, TPA, TNO, GUG &nbsp;|&nbsp; Generado: 04-Jul-2026 10:57</p>
+</header>
+<main>
+  <div class="tarjetas">
+      <div class="tarjeta"><div class="valor">277</div><div class="etq">Ocurrencias FLT<br>(todos los COA · YTD)</div></div>
+      <div class="tarjeta"><div class="valor">197</div><div class="etq">OPEN en Bitácora</div></div>
+      <div class="tarjeta"><div class="valor">80</div><div class="etq">In Progress en Bitácora</div></div>
+      <div class="tarjeta"><div class="valor">9</div><div class="etq">Tareas activas en Planner<br>(se excluyen 228 completadas)</div></div>
+      <div class="tarjeta rojo"><div class="valor">4</div><div class="etq">Tasks vencidas</div></div>
+      <div class="tarjeta rojo"><div class="valor">181</div><div class="etq">OPEN sin investigación</div></div>
+    </div>
+
+  <div class="graficos">
+    <div class="grafico ancho"><h3>Ocurrencias por COA (OPEN / In Progress)</h3>
+      <canvas id="gCoa"></canvas></div>
+    <div class="grafico"><h3>Investigación por COA (con / sin)</h3>
+      <canvas id="gCoaInv"></canvas></div>
+    <div class="grafico"><h3>Nivel de riesgo (todas las ocurrencias)</h3>
+      <canvas id="gRiesgo"></canvas></div>
+    <div class="grafico ancho"><h3>Resumen de hallazgos por categoría</h3>
+      <canvas id="gBarras"></canvas></div>
+    <div class="grafico"><h3>Cobertura de eventos OPEN (con / sin Task)</h3>
+      <canvas id="gCobertura"></canvas></div>
+    <div class="grafico"><h3>Progreso de tareas en Planner</h3>
+      <canvas id="gProgreso"></canvas></div>
+    <div class="grafico ancho"><h3>Ocurrencias de Bitácora por mes (YTD)</h3>
+      <canvas id="gMes"></canvas></div>
+  </div>
+
+  
+    <details class="seccion" open>
+      <summary>
+        <span class="num">★</span>
+        <span class="titulo-sec">Resumen por COA<small>Ocurrencias FLT activas por certificado de operación:
+          estado e investigación</small></span>
+        <span class="badge badge-ok">277</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>COA</th><th>Total</th><th>OPEN</th><th>In Progress</th><th>Con investigación</th><th>Sin investigación</th><th>% con investigación</th></tr></thead>
+          <tbody><tr><td class=coa>AVA</td><td>132</td><td>100</td><td>32</td><td>40</td><td>92</td><td>30%</td></tr><tr><td class=coa>GLG</td><td>30</td><td>19</td><td>11</td><td>13</td><td>17</td><td>43%</td></tr><tr><td class=coa>TAI</td><td>31</td><td>20</td><td>11</td><td>13</td><td>18</td><td>42%</td></tr><tr><td class=coa>LRC</td><td>3</td><td>3</td><td>0</td><td>0</td><td>3</td><td>0%</td></tr><tr><td class=coa>AVR</td><td>13</td><td>4</td><td>9</td><td>11</td><td>2</td><td>85%</td></tr><tr><td class=coa>TPA</td><td>26</td><td>19</td><td>7</td><td>7</td><td>19</td><td>27%</td></tr><tr><td class=coa>TNO</td><td>27</td><td>20</td><td>7</td><td>9</td><td>18</td><td>33%</td></tr><tr><td class=coa>GUG</td><td>6</td><td>5</td><td>1</td><td>1</td><td>5</td><td>17%</td></tr><tr><td class=coa>Otros</td><td>9</td><td>7</td><td>2</td><td>2</td><td>7</td><td>22%</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+  
+    <details class="seccion" open>
+      <summary>
+        <span class="num">1</span>
+        <span class="titulo-sec">Eventos OPEN en Bitácora sin tipo de investigación<small>Ocurrencias abiertas cuyo campo de investigación está vacío</small></span>
+        <span class="badge badge-alerta">181</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th>COA</th><th>Fecha</th><th>Días abierta</th><th>Estado</th><th>Investigación</th><th>Riesgo</th><th>Descripción</th></tr></thead>
+          <tbody><tr><td>O9614-26</td><td>TNO</td><td data-orden="2026-04-21 11:46">21-Apr-2026</td><td class="dias-alto">73</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- DIFFERENCE IN TAKEOFF PERFORMANCE CAL</td></tr>
+<tr><td>O10275-26</td><td>TNO</td><td data-orden="2026-04-30 12:00">30-Apr-2026</td><td class="dias-alto">64</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- DELAY DUE TO MAINTENANCE AND LATE CRE</td></tr>
+<tr><td>O11162-26</td><td>TNO</td><td data-orden="2026-05-13 12:00">13-May-2026</td><td class="dias-alto">51</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- LATE REVERSES AT BOG [PENDIENTE DATA]</td></tr>
+<tr><td>O11437-26</td><td>TAI</td><td data-orden="2026-05-14 14:38">14-May-2026</td><td class="dias-alto">50</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT BOG AV385 [1680187]</td></tr>
+<tr><td>O12850-26</td><td>TNO</td><td data-orden="2026-06-03 12:00">03-Jun-2026</td><td>30</td><td>Open</td><td></td><td>Acceptable (1)</td><td>TNO- LANDING GEAR NOT DOWNLOCKED AT MTY</td></tr>
+<tr><td>O12853-26</td><td>TNO</td><td data-orden="2026-06-04 12:00">04-Jun-2026</td><td>29</td><td>Open</td><td></td><td>Acceptable (10)</td><td>TNO- ATC COMINICATION EVENT DURING TAKE OF</td></tr>
+<tr><td>O12952-26</td><td>TNO</td><td data-orden="2026-06-06 12:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O13039-26</td><td>TNO</td><td data-orden="2026-06-07 12:00">07-Jun-2026</td><td>26</td><td>Open</td><td></td><td>Acceptable (10)</td><td>TNO- POSSIBLE OVERSHOOT APP AT GUA [169342</td></tr>
+<tr><td>O13085-26</td><td>TNO</td><td data-orden="2026-06-06 12:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT LAX [PENDIENTE DATA]</td></tr>
+<tr><td>O13377-26</td><td>GUG</td><td data-orden="2026-06-06 20:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- GO AROUND AT GUA GUG701 [NO FDA DATA]</td></tr>
+<tr><td>O13421-26</td><td>GUG</td><td data-orden="2026-06-12 06:34">12-Jun-2026</td><td>21</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- LONG FLARE DURING LANDING AT FRS GUG7</td></tr>
+<tr><td>O13505-26</td><td>TNO</td><td data-orden="2026-06-13 12:00">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O13810-26</td><td>GUG</td><td data-orden="2026-06-16 17:00">16-Jun-2026</td><td>17</td><td>Open</td><td></td><td>Acceptable (2)</td><td>GUG- HOLDING PATTERN AND LANDING AT GUA GU</td></tr>
+<tr><td>O13877-26</td><td>AVA</td><td data-orden="2026-06-18 00:40">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - FLAPS OVERSPEED DURING APPROACH</td></tr>
+<tr><td>O13880-26</td><td>AVA</td><td data-orden="2026-06-18 04:35">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - PFD SPEED INDICATION LOSS</td></tr>
+<tr><td>O13882-26</td><td>AVA</td><td data-orden="2026-06-18 05:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - RADIO COMMUNICATION FAILURE MAIQUETI</td></tr>
+<tr><td>O13906-26</td><td>AVA</td><td data-orden="2026-06-18 17:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- PARKING PROCEDURE FAILURE</td></tr>
+<tr><td>O13923-26</td><td>AVR</td><td data-orden="2026-06-13 09:15">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td></td><td>AVR- FLAPS RETRACTION BELOW S SPEED</td></tr>
+<tr><td>O13924-26</td><td>AVA</td><td data-orden="2026-06-13 20:00">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td></td><td>AVA GO AROUND RUNWAY OCCUPANCY</td></tr>
+<tr><td>O13941-26</td><td>AVA</td><td data-orden="2026-06-18 13:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - RAMP PROCEDURE NONCOMPLIANCE</td></tr>
+<tr><td>O13991-26</td><td>AVA</td><td data-orden="2026-06-19 04:00">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td></td><td>AVA - SEVERE TURBULENCE APPROACH</td></tr>
+<tr><td>O13998-26</td><td>GUG</td><td data-orden="2026-06-20 20:10">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- SINK RATE DURING APP AT GUA GUG701 [N</td></tr>
+<tr><td>O14045-26</td><td>AVA</td><td data-orden="2026-06-20 15:50">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>AVA- EMERGENCY DECLARATION (PAN-PAN-PAN)</td></tr>
+<tr><td>O14046-26</td><td>TNO</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- N1 MOMENTARILY ACCELERATING ABOVE 40%</td></tr>
+<tr><td>O14050-26</td><td>TNO</td><td data-orden="2026-06-19 12:00">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO - GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O14065-26</td><td>Otros</td><td data-orden="2026-06-20 21:20">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>RC- operador del Paymover STT 49 SAI no re</td></tr>
+<tr><td>O14082-26</td><td>AVA</td><td data-orden="2026-06-21 11:40">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (2)</td><td>AVA- UNSTABILIZED APPROACH AT MEX [PENDING</td></tr>
+<tr><td>O14087-26</td><td>TPA</td><td data-orden="2026-06-17 16:53">17-Jun-2026</td><td>16</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14091-26</td><td>AVR</td><td data-orden="2026-06-17 12:07">17-Jun-2026</td><td>16</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVR- GO AROUND BOG</td></tr>
+<tr><td>O14112-26</td><td>LRC</td><td data-orden="2026-06-21 16:41">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>LRC- SUSPECTED LIGTHTNING STRIKE DURNG ASC</td></tr>
+<tr><td>O14130-26</td><td>AVA</td><td data-orden="2026-06-22 00:13">22-Jun-2026</td><td>11</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- UNSTABILIZED APP [PENDING DATA]</td></tr>
+<tr><td>O14144-26</td><td>AVA</td><td data-orden="2026-06-22 09:50">22-Jun-2026</td><td>11</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- BANK OSCILLATIONS BOG [PENDING DATA]</td></tr>
+<tr><td>O14152-26</td><td>TAI</td><td data-orden="2026-06-21 13:30">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- FLAPS CONFIGURATION DURING APP AT MIA</td></tr>
+<tr><td>O14157-26</td><td>AVA</td><td data-orden="2026-06-18 08:15">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA IDLE REVERSE</td></tr>
+<tr><td>O14172-26</td><td>TPA</td><td data-orden="2026-06-15 08:24">15-Jun-2026</td><td>18</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14173-26</td><td>TPA</td><td data-orden="2026-06-16 21:59">16-Jun-2026</td><td>17</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14195-26</td><td>AVA</td><td data-orden="2026-06-23 12:40">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA. GO AROUND BOG</td></tr>
+<tr><td>O14258-26</td><td>AVA</td><td data-orden="2026-06-23 14:04">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- LONG FLARE AT BOG [PENDING DATA]</td></tr>
+<tr><td>O14263-26</td><td>TAI</td><td data-orden="2026-06-24 08:30">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT GUA TAI554 [1704993]</td></tr>
+<tr><td>O14274-26</td><td>Otros</td><td data-orden="2026-06-24 14:45">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>Momentáneo ingreso a rango de VLS, debido</td></tr>
+<tr><td>O14297-26</td><td>AVA</td><td data-orden="2026-06-23 11:30">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA - HARD LANDING CROSSWIND</td></tr>
+<tr><td>O14311-26</td><td>Otros</td><td data-orden="2026-06-23 22:10">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>Respuesta inadecuada del avión durante el</td></tr>
+<tr><td>O14348-26</td><td>TAI</td><td data-orden="2026-06-19 18:39">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT SJO TAI313 [1702019]</td></tr>
+<tr><td>O14362-26</td><td>AVA</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- LACK OF COMMUNICATION [PENDING DATA]</td></tr>
+<tr><td>O14363-26</td><td>AVA</td><td data-orden="2026-06-23 22:05">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- ATC COMUNICATION EVENT AT PEI [PENDIN</td></tr>
+<tr><td>O14364-26</td><td>TPA</td><td data-orden="2026-06-25 03:15">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>TPA- FLAP LOAD RELIEF ACTIVATION IN APP AT</td></tr>
+<tr><td>O14370-26</td><td>GUG</td><td data-orden="2026-06-25 23:20">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- LOSS OF GLIDE SLOPE AT MGGT GUG703 [1</td></tr>
+<tr><td>O14381-26</td><td>AVA</td><td data-orden="2026-06-25 12:10">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- COMMUNICATIONS FAILURE</td></tr>
+<tr><td>O14387-26</td><td>AVA</td><td data-orden="2026-06-24 07:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- POSSIBLE UNSTABILIZED APP</td></tr>
+<tr><td>O14413-26</td><td>AVA</td><td data-orden="2026-06-25 05:40">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- OVERSPEED F2</td></tr>
+<tr><td>O14420-26</td><td>AVA</td><td data-orden="2026-06-25 08:55">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- UNSTABILIZED APP</td></tr>
+<tr><td>O14430-26</td><td>AVA</td><td data-orden="2026-06-23 13:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- TIRE SPEED LIMIT EXCEEDED AT CUZ [170</td></tr>
+<tr><td>O14431-26</td><td>TNO</td><td data-orden="2026-06-24 12:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TNO- LATE REVERSES AT BOG</td></tr>
+<tr><td>O14432-26</td><td>TNO</td><td data-orden="2026-06-24 12:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TNO- MAXIMUM FLAP EXTENDED SPEED AT UIO</td></tr>
+<tr><td>O14444-26</td><td>TAI</td><td data-orden="2026-06-20 23:15">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT GUA TAI578 [1701412]</td></tr>
+<tr><td>O14445-26</td><td>Otros</td><td data-orden="2026-06-23 11:04">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>FDA O14398-26, AVA142</td></tr>
+<tr><td>O14446-26</td><td>TNO</td><td data-orden="2026-06-23 12:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>TNO- SPEED BELOW VAPP ON APPROACH</td></tr>
+<tr><td>O14448-26</td><td>TPA</td><td data-orden="2026-06-24 20:02">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TPA- POSSIBLE UNSTABILIZED APP</td></tr>
+<tr><td>O14449-26</td><td>AVA</td><td data-orden="2026-06-25 09:46">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- LIGHTNING STRIKE</td></tr>
+<tr><td>O14459-26</td><td>AVA</td><td data-orden="2026-06-20 07:15">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>AVA- HIGH SPEED END OF THE RUNWAY BAQ</td></tr>
+<tr><td>O14464-26</td><td>TPA</td><td data-orden="2026-06-23 17:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>TPA- UNSTABILIZED APP</td></tr>
+<tr><td>O14471-26</td><td>AVA</td><td data-orden="2026-06-24 11:55">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- GNSS INTERFERENCE</td></tr>
+<tr><td>O14478-26</td><td>AVA</td><td data-orden="2026-06-25 23:20">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- POSSIBLE OVERSPEED</td></tr>
+<tr><td>O14483-26</td><td>TAI</td><td data-orden="2026-06-26 10:43">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TAI- PARAMETERS AT MMMX TAI430 [1707370]</td></tr>
+<tr><td>O14487-26</td><td>AVA</td><td data-orden="2026-06-26 12:00">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- APP ILS Z 18R LEMD</td></tr>
+<tr><td>O14505-26</td><td>TAI</td><td data-orden="2026-06-26 19:26">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Tolerable (20)</td><td>TAI- LOW TAIL CLEARANCE DURING TAKE OFF AT</td></tr>
+<tr><td>O14507-26</td><td>AVA</td><td data-orden="2026-06-27 06:24">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- PRESURIZATION CONDITION</td></tr>
+<tr><td>O14514-26</td><td>TAI</td><td data-orden="2026-06-25 18:11">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>TAI- GPWS GLIDESLOPE AT GUA TAI588 [170735</td></tr>
+<tr><td>O14518-26</td><td>AVA</td><td data-orden="2026-06-25 09:12">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- FLAPS OVERSPEDD</td></tr>
+<tr><td>O14523-26</td><td>AVA</td><td data-orden="2026-06-23 11:05">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- SOP CONFIGURATION</td></tr>
+<tr><td>O14528-26</td><td>TAI</td><td data-orden="2026-06-27 03:25">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- WRONG FLT PROCEDURE AT LIM TAI429 [17</td></tr>
+<tr><td>O14539-26</td><td>AVA</td><td data-orden="2026-06-23 22:55">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- DUAL INPUT DURING FINAL APP AT BOG. [</td></tr>
+<tr><td>O14549-26</td><td>AVA</td><td data-orden="2026-06-27 09:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- FLAPS OVERSPEED</td></tr>
+<tr><td>O14553-26</td><td>AVA</td><td data-orden="2026-06-27 09:20">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- REJECTED LANDING</td></tr>
+<tr><td>O14559-26</td><td>TAI</td><td data-orden="2026-06-27 10:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TAI- DUAL INPUT INDICATION AT SJO TAI318 [</td></tr>
+<tr><td>O14569-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- DIVERSION TO SAP ALTERNATE AIRPORT</td></tr>
+<tr><td>O14570-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- N1 MOMENTARILY EXCEEDANCE ABOVE 40% A</td></tr>
+<tr><td>O14571-26</td><td>AVA</td><td data-orden="2026-06-25 11:52">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- 180 TAKE OFF RWY 01</td></tr>
+<tr><td>O14578-26</td><td>AVA</td><td data-orden="2026-06-27 12:50">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- SINK RATE ON APP VLN</td></tr>
+<tr><td>O14579-26</td><td>AVA</td><td data-orden="2026-06-27 12:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- GPWS SINK RATE</td></tr>
+<tr><td>O14583-26</td><td>Otros</td><td data-orden="2026-06-25 13:53">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>Vectoreo por debajo de las altitudes mínim</td></tr>
+<tr><td>O14591-26</td><td>TAI</td><td data-orden="2026-06-27 14:02">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GS OSCILLATION DURING APPROACH AT GUA</td></tr>
+<tr><td>O14592-26</td><td>TPA</td><td data-orden="2026-06-27 15:40">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TPA- GO AROUND UIO</td></tr>
+<tr><td>O14602-26</td><td>AVA</td><td data-orden="2026-06-26 14:30">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- LONG FLARE LPB</td></tr>
+<tr><td>O14610-26</td><td>GLG</td><td data-orden="2026-06-27 06:55">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (10)</td><td>GLG- CACELLED TAKEOFF AT BOG GLG8385 [1707</td></tr>
+<tr><td>O14614-26</td><td>GLG</td><td data-orden="2026-06-26 18:45">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT GYE GLG8399 [1708691]</td></tr>
+<tr><td>O14618-26</td><td>GLG</td><td data-orden="2026-06-27 17:22">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND DUE POSSIBLE V/S EXCEDANCE</td></tr>
+<tr><td>O14623-26</td><td>AVA</td><td data-orden="2026-06-27 18:12">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- THRUST LEVERS VARIATION DURING TAKE O</td></tr>
+<tr><td>O14635-26</td><td>GLG</td><td data-orden="2026-06-26 17:50">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- VERTICAL SPEED EXCEEDANCE DURING APPR</td></tr>
+<tr><td>O14640-26</td><td>AVA</td><td data-orden="2026-06-25 15:43">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND PSO</td></tr>
+<tr><td>O14643-26</td><td>AVA</td><td data-orden="2026-06-28 03:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- GO AROUND</td></tr>
+<tr><td>O14647-26</td><td>AVA</td><td data-orden="2026-06-27 12:20">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- APPROXIMATION MDE</td></tr>
+<tr><td>O14651-26</td><td>TPA</td><td data-orden="2026-06-28 07:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>TPA- BALLOONS IN APP ILS</td></tr>
+<tr><td>O14655-26</td><td>AVA</td><td data-orden="2026-06-28 09:34">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- UNSTABILIZED APP</td></tr>
+<tr><td>O14666-26</td><td>AVA</td><td data-orden="2026-06-28 10:34">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - COMPLEX RNP Z APPROACH CONDITIONS</td></tr>
+<tr><td>O14669-26</td><td>TAI</td><td data-orden="2026-06-28 02:43">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- MODERATE TURBULENCE DURING APPROACH A</td></tr>
+<tr><td>O14670-26</td><td>AVA</td><td data-orden="2026-06-21 04:40">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND DUE TO RWY OCCUPIED</td></tr>
+<tr><td>O14677-26</td><td>AVA</td><td data-orden="2026-06-28 12:22">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE APPROACH GO AROUND</td></tr>
+<tr><td>O14685-26</td><td>AVA</td><td data-orden="2026-06-28 14:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - VLS CALCULATION DISCREPANCY</td></tr>
+<tr><td>O14687-26</td><td>AVA</td><td data-orden="2026-06-24 23:15">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND CUC</td></tr>
+<tr><td>O14690-26</td><td>AVA</td><td data-orden="2026-06-28 13:15">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - FLAPS CONFIGURATION ERROR</td></tr>
+<tr><td>O14696-26</td><td>AVA</td><td data-orden="2026-06-28 16:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- OVERSPEED UIO</td></tr>
+<tr><td>O14698-26</td><td>AVA</td><td data-orden="2026-06-28 12:27">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO UNSTABLE FLARE</td></tr>
+<tr><td>O14705-26</td><td>AVA</td><td data-orden="2026-06-29 02:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - OVERSHOOT DUE TO WIND</td></tr>
+<tr><td>O14709-26</td><td>AVA</td><td data-orden="2026-06-28 18:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - INTERNATIONAL FLIGHT DIVERSION DELAY</td></tr>
+<tr><td>O14714-26</td><td>AVA</td><td data-orden="2026-06-28 18:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - MECHANICAL FAILURE ANNOUNCEMENT DELA</td></tr>
+<tr><td>O14727-26</td><td>TPA</td><td data-orden="2026-06-28 11:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (1)</td><td>TPA- GO AROUND AND DIVERTED TO BAQ</td></tr>
+<tr><td>O14743-26</td><td>AVA</td><td data-orden="2026-06-28 19:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND LONG FLARE</td></tr>
+<tr><td>O14747-26</td><td>AVA</td><td data-orden="2026-06-29 13:50">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - ILS APPROACH GO AROUND DUE TURBULENC</td></tr>
+<tr><td>O14752-26</td><td>AVA</td><td data-orden="2026-06-29 16:28">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR DURING FINAL APPROACH</td></tr>
+<tr><td>O14753-26</td><td>GLG</td><td data-orden="2026-06-28 17:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO MEC GL</td></tr>
+<tr><td>O14759-26</td><td>AVA</td><td data-orden="2026-06-29 02:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO HIGH ALTITUDE</td></tr>
+<tr><td>O14762-26</td><td>AVA</td><td data-orden="2026-06-29 02:30">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO UNSTABLE APPROACH</td></tr>
+<tr><td>O14766-26</td><td>AVA</td><td data-orden="2026-06-28 09:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (2)</td><td>AVA- GO AROUND PSO</td></tr>
+<tr><td>O14767-26</td><td>AVA</td><td data-orden="2026-06-26 06:05">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- REJECTED LANDING AT CTG [1706001]</td></tr>
+<tr><td>O14771-26</td><td>GLG</td><td data-orden="2026-06-27 16:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO GLG1633 [1707984]</td></tr>
+<tr><td>O14772-26</td><td>AVA</td><td data-orden="2026-06-29 16:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - CAUTION TERRAIN AHEAD GO AROUND</td></tr>
+<tr><td>O14790-26</td><td>AVA</td><td data-orden="2026-06-29 15:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO WIND SHEAR</td></tr>
+<tr><td>O14792-26</td><td>AVA</td><td data-orden="2026-06-29 21:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA- POSITIVE LANDING</td></tr>
+<tr><td>O14805-26</td><td>AVA</td><td data-orden="2026-06-29 02:20">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND TURBULENCE</td></tr>
+<tr><td>O14807-26</td><td>TPA</td><td data-orden="2026-06-30 10:30">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA - NEAR GROUND GO AROUND</td></tr>
+<tr><td>O14821-26</td><td>TAI</td><td data-orden="2026-06-29 23:50">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>TAI- OVERSPEED IN APP AT MEX</td></tr>
+<tr><td>O14822-26</td><td>TPA</td><td data-orden="2026-06-30 03:23">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA- ACCIDENTAL DISCONNECTED AP</td></tr>
+<tr><td>O14827-26</td><td>LRC</td><td data-orden="2026-06-28 20:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (2)</td><td>LRC- GO AROUND AT UIO [1710476]</td></tr>
+<tr><td>O14835-26</td><td>AVA</td><td data-orden="2026-06-28 12:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - DIVERTED FLIGHT NO TECHNICIAN</td></tr>
+<tr><td>O14837-26</td><td>GLG</td><td data-orden="2026-06-28 17:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO MEC GL</td></tr>
+<tr><td>O14839-26</td><td>Otros</td><td data-orden="2026-06-24 08:30">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>Go Around</td></tr>
+<tr><td>O14840-26</td><td>GLG</td><td data-orden="2026-06-29 16:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (2)</td><td>GLG- POSSIBLE SPEED EXCEEDANCE AT UIO GLG1</td></tr>
+<tr><td>O14842-26</td><td>AVA</td><td data-orden="2026-06-28 15:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- SEAT BELT SIGN OFF</td></tr>
+<tr><td>O14843-26</td><td>GLG</td><td data-orden="2026-06-28 16:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- CROSSWIND DURING APP AT UIO GLG1633 [</td></tr>
+<tr><td>O14844-26</td><td>GLG</td><td data-orden="2026-06-29 09:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- CROSSWIND DURING APP AT UIO GLG1623 [</td></tr>
+<tr><td>O14846-26</td><td>AVA</td><td data-orden="2026-06-30 08:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND MDE</td></tr>
+<tr><td>O14847-26</td><td>GLG</td><td data-orden="2026-06-28 21:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- DEVIATION PAPI PROFILE IN APP AT MEC</td></tr>
+<tr><td>O14850-26</td><td>TPA</td><td data-orden="2026-06-30 10:20">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA - GO AROUND DUE TO SPEED INCREASE</td></tr>
+<tr><td>O14865-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- POSSIBLE HIGHT SPEED AT SAP</td></tr>
+<tr><td>O14867-26</td><td>GLG</td><td data-orden="2026-06-28 15:55">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1610</td></tr>
+<tr><td>O14869-26</td><td>GLG</td><td data-orden="2026-06-28 19:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1696</td></tr>
+<tr><td>O14871-26</td><td>GLG</td><td data-orden="2026-06-29 13:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO GYE GL</td></tr>
+<tr><td>O14873-26</td><td>GLG</td><td data-orden="2026-06-29 20:55">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT CUE GLG1606 [1709464]</td></tr>
+<tr><td>O14875-26</td><td>AVA</td><td data-orden="2026-06-29 23:30">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA- TURBULENCE</td></tr>
+<tr><td>O14880-26</td><td>AVA</td><td data-orden="2026-06-30 07:50">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND AT MDE</td></tr>
+<tr><td>O14884-26</td><td>TNO</td><td data-orden="2026-06-30 12:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TNO- GO AROUND AT SAP</td></tr>
+<tr><td>O14886-26</td><td>AVA</td><td data-orden="2026-06-30 12:48">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND AT SMR AV9720</td></tr>
+<tr><td>O14887-26</td><td>GLG</td><td data-orden="2026-06-30 14:20">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GPWS SINK RATE DURING APP AT UIO GLG1</td></tr>
+<tr><td>O14890-26</td><td>AVA</td><td data-orden="2026-06-30 18:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- CONTROL CABIN</td></tr>
+<tr><td>O14894-26</td><td>TAI</td><td data-orden="2026-07-01 03:45">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT UIO/ DEVERTION TO GYE TA</td></tr>
+<tr><td>O14895-26</td><td>TAI</td><td data-orden="2026-07-01 04:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT JFK TAI568 [1709818]</td></tr>
+<tr><td>O14906-26</td><td>AVA</td><td data-orden="2026-06-24 19:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA - FLARE FLOAT GO AROUND</td></tr>
+<tr><td>O14910-26</td><td>Otros</td><td data-orden="2026-07-01 10:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>ENG FAIL L</td></tr>
+<tr><td>O14911-26</td><td>AVA</td><td data-orden="2026-06-26 06:00">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA - TAILWIND GO AROUND ALTERNATE LANDING</td></tr>
+<tr><td>O14919-26</td><td>AVA</td><td data-orden="2026-06-28 12:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - WINDSHEAR GO AROUND</td></tr>
+<tr><td>O14925-26</td><td>AVA</td><td data-orden="2026-06-30 07:45">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND LOW VISIBILITY</td></tr>
+<tr><td>O14929-26</td><td>AVA</td><td data-orden="2026-06-30 16:30">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO TURBULENCE AND WIND</td></tr>
+<tr><td>O14937-26</td><td>TAI</td><td data-orden="2026-07-01 09:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TAI - HIGH ALTITUDE MISSED APPROACH</td></tr>
+<tr><td>O14938-26</td><td>AVA</td><td data-orden="2026-07-01 10:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - ENGINE FAILURE AND RECOVERY</td></tr>
+<tr><td>O14940-26</td><td>TPA</td><td data-orden="2026-07-01 10:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - UNSTABILIZED APPROACH GO AROUND</td></tr>
+<tr><td>O14954-26</td><td>AVA</td><td data-orden="2026-07-01 15:10">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - VERTICAL SPEED FLUCTUATIONS</td></tr>
+<tr><td>O14955-26</td><td>TPA</td><td data-orden="2026-07-01 15:47">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - GO AROUND DUE TO OVERSPEED</td></tr>
+<tr><td>O14957-26</td><td>AVA</td><td data-orden="2026-07-01 16:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO WIND</td></tr>
+<tr><td>O14958-26</td><td>AVA</td><td data-orden="2026-07-01 16:03">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - DOOR AFT CARGO WARNING</td></tr>
+<tr><td>O14961-26</td><td>GLG</td><td data-orden="2026-06-28 19:05">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1670</td></tr>
+<tr><td>O14964-26</td><td>AVA</td><td data-orden="2026-07-01 18:10">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - THRUST LEVER OVERSHOOT FLEX TAKEOFF</td></tr>
+<tr><td>O14968-26</td><td>AVA</td><td data-orden="2026-07-01 20:22">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - LONG LANDING RNP APPROACH</td></tr>
+<tr><td>O14975-26</td><td>TPA</td><td data-orden="2026-07-01 21:50">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - FLAPS CONFIGURATION WARNING</td></tr>
+<tr><td>O14976-26</td><td>AVA</td><td data-orden="2026-07-01 22:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - FOD REPORTED GO AROUND</td></tr>
+<tr><td>O14978-26</td><td>AVA</td><td data-orden="2026-07-01 22:50">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND YELLOW OBJECT RUNWAY</td></tr>
+<tr><td>O14980-26</td><td>TPA</td><td data-orden="2026-07-02 00:20">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>TPA - BRAKE OVERHEAT WARNING</td></tr>
+<tr><td>O14983-26</td><td>AVA</td><td data-orden="2026-07-02 05:14">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - ILS APPROACH COURSE DEVIATION</td></tr>
+<tr><td>O14997-26</td><td>AVA</td><td data-orden="2026-07-02 11:50">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE ILS APPROACH</td></tr>
+<tr><td>O15002-26</td><td>TAI</td><td data-orden="2026-07-01 14:01">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TAI - SPEED RESTRICTION EXCEEDANCE</td></tr>
+<tr><td>O15009-26</td><td>AVA</td><td data-orden="2026-07-02 16:35">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE APPROACH DUE TO WIND</td></tr>
+<tr><td>O15010-26</td><td>AVA</td><td data-orden="2026-07-02 16:57">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - LONG FLARE LANDING REVIEW</td></tr>
+<tr><td>O15019-26</td><td>AVA</td><td data-orden="2026-07-02 23:45">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE ILS APPROACH TAILWIND</td></tr>
+<tr><td>O15020-26</td><td>LRC</td><td data-orden="2026-07-02 12:45">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td>Acceptable (2)</td><td>LRC - GO AROUND AT SJO [PENDING SARA DATA]</td></tr>
+<tr><td>O15021-26</td><td>AVA</td><td data-orden="2026-07-02 23:50">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR OVERSHOOT UIO36</td></tr>
+<tr><td>O15022-26</td><td>TPA</td><td data-orden="2026-07-03 00:10">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TPA - FLAP LOAD RELIEF ACTIVATION</td></tr>
+<tr><td>O15023-26</td><td>TPA</td><td data-orden="2026-07-03 00:12">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TPA - FLAP RETRACTION DURING APPROACH</td></tr>
+<tr><td>O15027-26</td><td>AVA</td><td data-orden="2026-06-30 12:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR DURING APPROACH</td></tr>
+<tr><td>O15030-26</td><td>AVA</td><td data-orden="2026-07-03 05:15">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>AVA - EMERGENCY EQUIPMENT LABELING MISSING</td></tr>
+<tr><td>O15037-26</td><td>TAI</td><td data-orden="2026-07-03 11:00">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TAI - LOW APPROACH CROSSING THRESHOLD</td></tr>
+<tr><td>O15048-26</td><td>TPA</td><td data-orden="2026-06-28 16:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>TPA - WINDSHEAR GO AROUND</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+    <details class="seccion" >
+      <summary>
+        <span class="num">2</span>
+        <span class="titulo-sec">Eventos en Bitácora que no están en Tasks<small>Ocurrencias sin tarea activa de seguimiento en Planner (las completadas no cuentan)</small></span>
+        <span class="badge badge-alerta">268</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th>COA</th><th>Fecha</th><th>Días abierta</th><th>Estado</th><th>Investigación</th><th>Riesgo</th><th>Descripción</th></tr></thead>
+          <tbody><tr><td>O9614-26</td><td>TNO</td><td data-orden="2026-04-21 11:46">21-Apr-2026</td><td class="dias-alto">73</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- DIFFERENCE IN TAKEOFF PERFORMANCE CAL</td></tr>
+<tr><td>O10275-26</td><td>TNO</td><td data-orden="2026-04-30 12:00">30-Apr-2026</td><td class="dias-alto">64</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- DELAY DUE TO MAINTENANCE AND LATE CRE</td></tr>
+<tr><td>O10432-26</td><td>TNO</td><td data-orden="2026-04-30 12:00">30-Apr-2026</td><td class="dias-alto">64</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>TNO- N1 MOMENTARILY ACCELERATING ABOVE 40%</td></tr>
+<tr><td>O10917-26</td><td>TAI</td><td data-orden="2026-05-11 08:15">11-May-2026</td><td class="dias-alto">53</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>TAI- GO AROUND AT MGA TAI396 [1677310]</td></tr>
+<tr><td>O11162-26</td><td>TNO</td><td data-orden="2026-05-13 12:00">13-May-2026</td><td class="dias-alto">51</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- LATE REVERSES AT BOG [PENDIENTE DATA]</td></tr>
+<tr><td>O11437-26</td><td>TAI</td><td data-orden="2026-05-14 14:38">14-May-2026</td><td class="dias-alto">50</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT BOG AV385 [1680187]</td></tr>
+<tr><td>O12348-26</td><td>TNO</td><td data-orden="2026-05-30 12:00">30-May-2026</td><td class="dias-alto">34</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (2)</td><td>TNO- SINGLE TAXI AT SJO [1689900]</td></tr>
+<tr><td>O12850-26</td><td>TNO</td><td data-orden="2026-06-03 12:00">03-Jun-2026</td><td>30</td><td>Open</td><td></td><td>Acceptable (1)</td><td>TNO- LANDING GEAR NOT DOWNLOCKED AT MTY</td></tr>
+<tr><td>O12853-26</td><td>TNO</td><td data-orden="2026-06-04 12:00">04-Jun-2026</td><td>29</td><td>Open</td><td></td><td>Acceptable (10)</td><td>TNO- ATC COMINICATION EVENT DURING TAKE OF</td></tr>
+<tr><td>O12952-26</td><td>TNO</td><td data-orden="2026-06-06 12:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O13039-26</td><td>TNO</td><td data-orden="2026-06-07 12:00">07-Jun-2026</td><td>26</td><td>Open</td><td></td><td>Acceptable (10)</td><td>TNO- POSSIBLE OVERSHOOT APP AT GUA [169342</td></tr>
+<tr><td>O13085-26</td><td>TNO</td><td data-orden="2026-06-06 12:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT LAX [PENDIENTE DATA]</td></tr>
+<tr><td>O13377-26</td><td>GUG</td><td data-orden="2026-06-06 20:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- GO AROUND AT GUA GUG701 [NO FDA DATA]</td></tr>
+<tr><td>O13413-26</td><td>GLG</td><td data-orden="2026-06-11 15:10">11-Jun-2026</td><td>22</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>GLG- TURBULENCE DURING CLIMB AT EZE GLG839</td></tr>
+<tr><td>O13421-26</td><td>GUG</td><td data-orden="2026-06-12 06:34">12-Jun-2026</td><td>21</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- LONG FLARE DURING LANDING AT FRS GUG7</td></tr>
+<tr><td>O13505-26</td><td>TNO</td><td data-orden="2026-06-13 12:00">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O13810-26</td><td>GUG</td><td data-orden="2026-06-16 17:00">16-Jun-2026</td><td>17</td><td>Open</td><td></td><td>Acceptable (2)</td><td>GUG- HOLDING PATTERN AND LANDING AT GUA GU</td></tr>
+<tr><td>O13877-26</td><td>AVA</td><td data-orden="2026-06-18 00:40">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - FLAPS OVERSPEED DURING APPROACH</td></tr>
+<tr><td>O13880-26</td><td>AVA</td><td data-orden="2026-06-18 04:35">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - PFD SPEED INDICATION LOSS</td></tr>
+<tr><td>O13882-26</td><td>AVA</td><td data-orden="2026-06-18 05:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - RADIO COMMUNICATION FAILURE MAIQUETI</td></tr>
+<tr><td>O13906-26</td><td>AVA</td><td data-orden="2026-06-18 17:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- PARKING PROCEDURE FAILURE</td></tr>
+<tr><td>O13922-26</td><td>AVA</td><td data-orden="2026-06-11 12:00">11-Jun-2026</td><td>22</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (1)</td><td>AVA- UNSTABILIZED APPROACH WITH GO AROUND</td></tr>
+<tr><td>O13923-26</td><td>AVR</td><td data-orden="2026-06-13 09:15">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td></td><td>AVR- FLAPS RETRACTION BELOW S SPEED</td></tr>
+<tr><td>O13924-26</td><td>AVA</td><td data-orden="2026-06-13 20:00">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td></td><td>AVA GO AROUND RUNWAY OCCUPANCY</td></tr>
+<tr><td>O13941-26</td><td>AVA</td><td data-orden="2026-06-18 13:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - RAMP PROCEDURE NONCOMPLIANCE</td></tr>
+<tr><td>O13991-26</td><td>AVA</td><td data-orden="2026-06-19 04:00">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td></td><td>AVA - SEVERE TURBULENCE APPROACH</td></tr>
+<tr><td>O13998-26</td><td>GUG</td><td data-orden="2026-06-20 20:10">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- SINK RATE DURING APP AT GUA GUG701 [N</td></tr>
+<tr><td>O14045-26</td><td>AVA</td><td data-orden="2026-06-20 15:50">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>AVA- EMERGENCY DECLARATION (PAN-PAN-PAN)</td></tr>
+<tr><td>O14046-26</td><td>TNO</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- N1 MOMENTARILY ACCELERATING ABOVE 40%</td></tr>
+<tr><td>O14050-26</td><td>TNO</td><td data-orden="2026-06-19 12:00">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO - GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O14065-26</td><td>Otros</td><td data-orden="2026-06-20 21:20">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>RC- operador del Paymover STT 49 SAI no re</td></tr>
+<tr><td>O14082-26</td><td>AVA</td><td data-orden="2026-06-21 11:40">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (2)</td><td>AVA- UNSTABILIZED APPROACH AT MEX [PENDING</td></tr>
+<tr><td>O14087-26</td><td>TPA</td><td data-orden="2026-06-17 16:53">17-Jun-2026</td><td>16</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14091-26</td><td>AVR</td><td data-orden="2026-06-17 12:07">17-Jun-2026</td><td>16</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVR- GO AROUND BOG</td></tr>
+<tr><td>O14107-26</td><td>AVA</td><td data-orden="2026-06-19 17:55">19-Jun-2026</td><td>14</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVA- TAKE OVER AND POSITIVE LANDING [17019</td></tr>
+<tr><td>O14112-26</td><td>LRC</td><td data-orden="2026-06-21 16:41">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>LRC- SUSPECTED LIGTHTNING STRIKE DURNG ASC</td></tr>
+<tr><td>O14130-26</td><td>AVA</td><td data-orden="2026-06-22 00:13">22-Jun-2026</td><td>11</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- UNSTABILIZED APP [PENDING DATA]</td></tr>
+<tr><td>O14144-26</td><td>AVA</td><td data-orden="2026-06-22 09:50">22-Jun-2026</td><td>11</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- BANK OSCILLATIONS BOG [PENDING DATA]</td></tr>
+<tr><td>O14152-26</td><td>TAI</td><td data-orden="2026-06-21 13:30">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- FLAPS CONFIGURATION DURING APP AT MIA</td></tr>
+<tr><td>O14157-26</td><td>AVA</td><td data-orden="2026-06-18 08:15">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA IDLE REVERSE</td></tr>
+<tr><td>O14172-26</td><td>TPA</td><td data-orden="2026-06-15 08:24">15-Jun-2026</td><td>18</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14173-26</td><td>TPA</td><td data-orden="2026-06-16 21:59">16-Jun-2026</td><td>17</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14195-26</td><td>AVA</td><td data-orden="2026-06-23 12:40">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA. GO AROUND BOG</td></tr>
+<tr><td>O14258-26</td><td>AVA</td><td data-orden="2026-06-23 14:04">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- LONG FLARE AT BOG [PENDING DATA]</td></tr>
+<tr><td>O14263-26</td><td>TAI</td><td data-orden="2026-06-24 08:30">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT GUA TAI554 [1704993]</td></tr>
+<tr><td>O14274-26</td><td>Otros</td><td data-orden="2026-06-24 14:45">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>Momentáneo ingreso a rango de VLS, debido</td></tr>
+<tr><td>O14297-26</td><td>AVA</td><td data-orden="2026-06-23 11:30">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA - HARD LANDING CROSSWIND</td></tr>
+<tr><td>O14311-26</td><td>Otros</td><td data-orden="2026-06-23 22:10">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>Respuesta inadecuada del avión durante el</td></tr>
+<tr><td>O14340-26</td><td>AVA</td><td data-orden="2026-06-24 13:50">24-Jun-2026</td><td>9</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (10)</td><td>AVA- SUSPECTED UNSTABILIZED APPROACH AT CU</td></tr>
+<tr><td>O14348-26</td><td>TAI</td><td data-orden="2026-06-19 18:39">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT SJO TAI313 [1702019]</td></tr>
+<tr><td>O14354-26</td><td>AVA</td><td data-orden="2026-06-20 13:38">20-Jun-2026</td><td>13</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (1)</td><td>AVA- GO AROUND AT BOG [1702464]</td></tr>
+<tr><td>O14362-26</td><td>AVA</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- LACK OF COMMUNICATION [PENDING DATA]</td></tr>
+<tr><td>O14363-26</td><td>AVA</td><td data-orden="2026-06-23 22:05">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- ATC COMUNICATION EVENT AT PEI [PENDIN</td></tr>
+<tr><td>O14364-26</td><td>TPA</td><td data-orden="2026-06-25 03:15">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>TPA- FLAP LOAD RELIEF ACTIVATION IN APP AT</td></tr>
+<tr><td>O14370-26</td><td>GUG</td><td data-orden="2026-06-25 23:20">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- LOSS OF GLIDE SLOPE AT MGGT GUG703 [1</td></tr>
+<tr><td>O14381-26</td><td>AVA</td><td data-orden="2026-06-25 12:10">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- COMMUNICATIONS FAILURE</td></tr>
+<tr><td>O14387-26</td><td>AVA</td><td data-orden="2026-06-24 07:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- POSSIBLE UNSTABILIZED APP</td></tr>
+<tr><td>O14413-26</td><td>AVA</td><td data-orden="2026-06-25 05:40">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- OVERSPEED F2</td></tr>
+<tr><td>O14420-26</td><td>AVA</td><td data-orden="2026-06-25 08:55">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- UNSTABILIZED APP</td></tr>
+<tr><td>O14430-26</td><td>AVA</td><td data-orden="2026-06-23 13:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- TIRE SPEED LIMIT EXCEEDED AT CUZ [170</td></tr>
+<tr><td>O14431-26</td><td>TNO</td><td data-orden="2026-06-24 12:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TNO- LATE REVERSES AT BOG</td></tr>
+<tr><td>O14432-26</td><td>TNO</td><td data-orden="2026-06-24 12:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TNO- MAXIMUM FLAP EXTENDED SPEED AT UIO</td></tr>
+<tr><td>O14444-26</td><td>TAI</td><td data-orden="2026-06-20 23:15">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT GUA TAI578 [1701412]</td></tr>
+<tr><td>O14445-26</td><td>Otros</td><td data-orden="2026-06-23 11:04">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>FDA O14398-26, AVA142</td></tr>
+<tr><td>O14446-26</td><td>TNO</td><td data-orden="2026-06-23 12:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>TNO- SPEED BELOW VAPP ON APPROACH</td></tr>
+<tr><td>O14448-26</td><td>TPA</td><td data-orden="2026-06-24 20:02">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TPA- POSSIBLE UNSTABILIZED APP</td></tr>
+<tr><td>O14449-26</td><td>AVA</td><td data-orden="2026-06-25 09:46">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- LIGHTNING STRIKE</td></tr>
+<tr><td>O14459-26</td><td>AVA</td><td data-orden="2026-06-20 07:15">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>AVA- HIGH SPEED END OF THE RUNWAY BAQ</td></tr>
+<tr><td>O14464-26</td><td>TPA</td><td data-orden="2026-06-23 17:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>TPA- UNSTABILIZED APP</td></tr>
+<tr><td>O14471-26</td><td>AVA</td><td data-orden="2026-06-24 11:55">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- GNSS INTERFERENCE</td></tr>
+<tr><td>O14478-26</td><td>AVA</td><td data-orden="2026-06-25 23:20">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- POSSIBLE OVERSPEED</td></tr>
+<tr><td>O14483-26</td><td>TAI</td><td data-orden="2026-06-26 10:43">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TAI- PARAMETERS AT MMMX TAI430 [1707370]</td></tr>
+<tr><td>O14487-26</td><td>AVA</td><td data-orden="2026-06-26 12:00">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- APP ILS Z 18R LEMD</td></tr>
+<tr><td>O14505-26</td><td>TAI</td><td data-orden="2026-06-26 19:26">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Tolerable (20)</td><td>TAI- LOW TAIL CLEARANCE DURING TAKE OFF AT</td></tr>
+<tr><td>O14507-26</td><td>AVA</td><td data-orden="2026-06-27 06:24">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- PRESURIZATION CONDITION</td></tr>
+<tr><td>O14514-26</td><td>TAI</td><td data-orden="2026-06-25 18:11">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>TAI- GPWS GLIDESLOPE AT GUA TAI588 [170735</td></tr>
+<tr><td>O14518-26</td><td>AVA</td><td data-orden="2026-06-25 09:12">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- FLAPS OVERSPEDD</td></tr>
+<tr><td>O14523-26</td><td>AVA</td><td data-orden="2026-06-23 11:05">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- SOP CONFIGURATION</td></tr>
+<tr><td>O14528-26</td><td>TAI</td><td data-orden="2026-06-27 03:25">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- WRONG FLT PROCEDURE AT LIM TAI429 [17</td></tr>
+<tr><td>O14539-26</td><td>AVA</td><td data-orden="2026-06-23 22:55">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- DUAL INPUT DURING FINAL APP AT BOG. [</td></tr>
+<tr><td>O14549-26</td><td>AVA</td><td data-orden="2026-06-27 09:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- FLAPS OVERSPEED</td></tr>
+<tr><td>O14553-26</td><td>AVA</td><td data-orden="2026-06-27 09:20">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- REJECTED LANDING</td></tr>
+<tr><td>O14559-26</td><td>TAI</td><td data-orden="2026-06-27 10:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TAI- DUAL INPUT INDICATION AT SJO TAI318 [</td></tr>
+<tr><td>O14569-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- DIVERSION TO SAP ALTERNATE AIRPORT</td></tr>
+<tr><td>O14570-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- N1 MOMENTARILY EXCEEDANCE ABOVE 40% A</td></tr>
+<tr><td>O14571-26</td><td>AVA</td><td data-orden="2026-06-25 11:52">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- 180 TAKE OFF RWY 01</td></tr>
+<tr><td>O14578-26</td><td>AVA</td><td data-orden="2026-06-27 12:50">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- SINK RATE ON APP VLN</td></tr>
+<tr><td>O14579-26</td><td>AVA</td><td data-orden="2026-06-27 12:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- GPWS SINK RATE</td></tr>
+<tr><td>O14583-26</td><td>Otros</td><td data-orden="2026-06-25 13:53">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>Vectoreo por debajo de las altitudes mínim</td></tr>
+<tr><td>O14591-26</td><td>TAI</td><td data-orden="2026-06-27 14:02">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GS OSCILLATION DURING APPROACH AT GUA</td></tr>
+<tr><td>O14592-26</td><td>TPA</td><td data-orden="2026-06-27 15:40">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TPA- GO AROUND UIO</td></tr>
+<tr><td>O14602-26</td><td>AVA</td><td data-orden="2026-06-26 14:30">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- LONG FLARE LPB</td></tr>
+<tr><td>O14603-26</td><td>GLG</td><td data-orden="2026-06-27 16:25">27-Jun-2026</td><td>6</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (1)</td><td>GLG- GO AROUND AT UIO GLG1683 [1706294]</td></tr>
+<tr><td>O14610-26</td><td>GLG</td><td data-orden="2026-06-27 06:55">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (10)</td><td>GLG- CACELLED TAKEOFF AT BOG GLG8385 [1707</td></tr>
+<tr><td>O14611-26</td><td>AVA</td><td data-orden="2026-06-25 11:22">25-Jun-2026</td><td>8</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (10)</td><td>AVA- SUSPECTED UNSTABILIZED APPROACH AT CU</td></tr>
+<tr><td>O14614-26</td><td>GLG</td><td data-orden="2026-06-26 18:45">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT GYE GLG8399 [1708691]</td></tr>
+<tr><td>O14618-26</td><td>GLG</td><td data-orden="2026-06-27 17:22">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND DUE POSSIBLE V/S EXCEDANCE</td></tr>
+<tr><td>O14623-26</td><td>AVA</td><td data-orden="2026-06-27 18:12">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- THRUST LEVERS VARIATION DURING TAKE O</td></tr>
+<tr><td>O14635-26</td><td>GLG</td><td data-orden="2026-06-26 17:50">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- VERTICAL SPEED EXCEEDANCE DURING APPR</td></tr>
+<tr><td>O14640-26</td><td>AVA</td><td data-orden="2026-06-25 15:43">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND PSO</td></tr>
+<tr><td>O14643-26</td><td>AVA</td><td data-orden="2026-06-28 03:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- GO AROUND</td></tr>
+<tr><td>O14647-26</td><td>AVA</td><td data-orden="2026-06-27 12:20">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- APPROXIMATION MDE</td></tr>
+<tr><td>O14651-26</td><td>TPA</td><td data-orden="2026-06-28 07:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>TPA- BALLOONS IN APP ILS</td></tr>
+<tr><td>O14655-26</td><td>AVA</td><td data-orden="2026-06-28 09:34">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- UNSTABILIZED APP</td></tr>
+<tr><td>O14666-26</td><td>AVA</td><td data-orden="2026-06-28 10:34">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - COMPLEX RNP Z APPROACH CONDITIONS</td></tr>
+<tr><td>O14669-26</td><td>TAI</td><td data-orden="2026-06-28 02:43">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- MODERATE TURBULENCE DURING APPROACH A</td></tr>
+<tr><td>O14670-26</td><td>AVA</td><td data-orden="2026-06-21 04:40">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND DUE TO RWY OCCUPIED</td></tr>
+<tr><td>O14677-26</td><td>AVA</td><td data-orden="2026-06-28 12:22">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE APPROACH GO AROUND</td></tr>
+<tr><td>O14685-26</td><td>AVA</td><td data-orden="2026-06-28 14:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - VLS CALCULATION DISCREPANCY</td></tr>
+<tr><td>O14687-26</td><td>AVA</td><td data-orden="2026-06-24 23:15">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND CUC</td></tr>
+<tr><td>O14690-26</td><td>AVA</td><td data-orden="2026-06-28 13:15">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - FLAPS CONFIGURATION ERROR</td></tr>
+<tr><td>O14696-26</td><td>AVA</td><td data-orden="2026-06-28 16:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- OVERSPEED UIO</td></tr>
+<tr><td>O14698-26</td><td>AVA</td><td data-orden="2026-06-28 12:27">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO UNSTABLE FLARE</td></tr>
+<tr><td>O14705-26</td><td>AVA</td><td data-orden="2026-06-29 02:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - OVERSHOOT DUE TO WIND</td></tr>
+<tr><td>O14709-26</td><td>AVA</td><td data-orden="2026-06-28 18:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - INTERNATIONAL FLIGHT DIVERSION DELAY</td></tr>
+<tr><td>O14714-26</td><td>AVA</td><td data-orden="2026-06-28 18:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - MECHANICAL FAILURE ANNOUNCEMENT DELA</td></tr>
+<tr><td>O14727-26</td><td>TPA</td><td data-orden="2026-06-28 11:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (1)</td><td>TPA- GO AROUND AND DIVERTED TO BAQ</td></tr>
+<tr><td>O14743-26</td><td>AVA</td><td data-orden="2026-06-28 19:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND LONG FLARE</td></tr>
+<tr><td>O14747-26</td><td>AVA</td><td data-orden="2026-06-29 13:50">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - ILS APPROACH GO AROUND DUE TURBULENC</td></tr>
+<tr><td>O14752-26</td><td>AVA</td><td data-orden="2026-06-29 16:28">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR DURING FINAL APPROACH</td></tr>
+<tr><td>O14753-26</td><td>GLG</td><td data-orden="2026-06-28 17:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO MEC GL</td></tr>
+<tr><td>O14759-26</td><td>AVA</td><td data-orden="2026-06-29 02:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO HIGH ALTITUDE</td></tr>
+<tr><td>O14762-26</td><td>AVA</td><td data-orden="2026-06-29 02:30">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO UNSTABLE APPROACH</td></tr>
+<tr><td>O14766-26</td><td>AVA</td><td data-orden="2026-06-28 09:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (2)</td><td>AVA- GO AROUND PSO</td></tr>
+<tr><td>O14767-26</td><td>AVA</td><td data-orden="2026-06-26 06:05">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- REJECTED LANDING AT CTG [1706001]</td></tr>
+<tr><td>O14771-26</td><td>GLG</td><td data-orden="2026-06-27 16:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO GLG1633 [1707984]</td></tr>
+<tr><td>O14772-26</td><td>AVA</td><td data-orden="2026-06-29 16:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - CAUTION TERRAIN AHEAD GO AROUND</td></tr>
+<tr><td>O14790-26</td><td>AVA</td><td data-orden="2026-06-29 15:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO WIND SHEAR</td></tr>
+<tr><td>O14792-26</td><td>AVA</td><td data-orden="2026-06-29 21:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA- POSITIVE LANDING</td></tr>
+<tr><td>O14805-26</td><td>AVA</td><td data-orden="2026-06-29 02:20">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND TURBULENCE</td></tr>
+<tr><td>O14807-26</td><td>TPA</td><td data-orden="2026-06-30 10:30">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA - NEAR GROUND GO AROUND</td></tr>
+<tr><td>O14821-26</td><td>TAI</td><td data-orden="2026-06-29 23:50">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>TAI- OVERSPEED IN APP AT MEX</td></tr>
+<tr><td>O14822-26</td><td>TPA</td><td data-orden="2026-06-30 03:23">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA- ACCIDENTAL DISCONNECTED AP</td></tr>
+<tr><td>O14827-26</td><td>LRC</td><td data-orden="2026-06-28 20:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (2)</td><td>LRC- GO AROUND AT UIO [1710476]</td></tr>
+<tr><td>O14835-26</td><td>AVA</td><td data-orden="2026-06-28 12:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - DIVERTED FLIGHT NO TECHNICIAN</td></tr>
+<tr><td>O14837-26</td><td>GLG</td><td data-orden="2026-06-28 17:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO MEC GL</td></tr>
+<tr><td>O14839-26</td><td>Otros</td><td data-orden="2026-06-24 08:30">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>Go Around</td></tr>
+<tr><td>O14840-26</td><td>GLG</td><td data-orden="2026-06-29 16:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (2)</td><td>GLG- POSSIBLE SPEED EXCEEDANCE AT UIO GLG1</td></tr>
+<tr><td>O14842-26</td><td>AVA</td><td data-orden="2026-06-28 15:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- SEAT BELT SIGN OFF</td></tr>
+<tr><td>O14843-26</td><td>GLG</td><td data-orden="2026-06-28 16:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- CROSSWIND DURING APP AT UIO GLG1633 [</td></tr>
+<tr><td>O14844-26</td><td>GLG</td><td data-orden="2026-06-29 09:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- CROSSWIND DURING APP AT UIO GLG1623 [</td></tr>
+<tr><td>O14846-26</td><td>AVA</td><td data-orden="2026-06-30 08:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND MDE</td></tr>
+<tr><td>O14847-26</td><td>GLG</td><td data-orden="2026-06-28 21:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- DEVIATION PAPI PROFILE IN APP AT MEC</td></tr>
+<tr><td>O14850-26</td><td>TPA</td><td data-orden="2026-06-30 10:20">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA - GO AROUND DUE TO SPEED INCREASE</td></tr>
+<tr><td>O14865-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- POSSIBLE HIGHT SPEED AT SAP</td></tr>
+<tr><td>O14867-26</td><td>GLG</td><td data-orden="2026-06-28 15:55">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1610</td></tr>
+<tr><td>O14869-26</td><td>GLG</td><td data-orden="2026-06-28 19:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1696</td></tr>
+<tr><td>O14871-26</td><td>GLG</td><td data-orden="2026-06-29 13:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO GYE GL</td></tr>
+<tr><td>O14873-26</td><td>GLG</td><td data-orden="2026-06-29 20:55">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT CUE GLG1606 [1709464]</td></tr>
+<tr><td>O14875-26</td><td>AVA</td><td data-orden="2026-06-29 23:30">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA- TURBULENCE</td></tr>
+<tr><td>O14880-26</td><td>AVA</td><td data-orden="2026-06-30 07:50">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND AT MDE</td></tr>
+<tr><td>O14884-26</td><td>TNO</td><td data-orden="2026-06-30 12:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TNO- GO AROUND AT SAP</td></tr>
+<tr><td>O14886-26</td><td>AVA</td><td data-orden="2026-06-30 12:48">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND AT SMR AV9720</td></tr>
+<tr><td>O14887-26</td><td>GLG</td><td data-orden="2026-06-30 14:20">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GPWS SINK RATE DURING APP AT UIO GLG1</td></tr>
+<tr><td>O14890-26</td><td>AVA</td><td data-orden="2026-06-30 18:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- CONTROL CABIN</td></tr>
+<tr><td>O14894-26</td><td>TAI</td><td data-orden="2026-07-01 03:45">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT UIO/ DEVERTION TO GYE TA</td></tr>
+<tr><td>O14895-26</td><td>TAI</td><td data-orden="2026-07-01 04:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT JFK TAI568 [1709818]</td></tr>
+<tr><td>O14906-26</td><td>AVA</td><td data-orden="2026-06-24 19:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA - FLARE FLOAT GO AROUND</td></tr>
+<tr><td>O14910-26</td><td>Otros</td><td data-orden="2026-07-01 10:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>ENG FAIL L</td></tr>
+<tr><td>O14911-26</td><td>AVA</td><td data-orden="2026-06-26 06:00">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA - TAILWIND GO AROUND ALTERNATE LANDING</td></tr>
+<tr><td>O14919-26</td><td>AVA</td><td data-orden="2026-06-28 12:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - WINDSHEAR GO AROUND</td></tr>
+<tr><td>O14925-26</td><td>AVA</td><td data-orden="2026-06-30 07:45">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND LOW VISIBILITY</td></tr>
+<tr><td>O14929-26</td><td>AVA</td><td data-orden="2026-06-30 16:30">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO TURBULENCE AND WIND</td></tr>
+<tr><td>O14937-26</td><td>TAI</td><td data-orden="2026-07-01 09:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TAI - HIGH ALTITUDE MISSED APPROACH</td></tr>
+<tr><td>O14938-26</td><td>AVA</td><td data-orden="2026-07-01 10:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - ENGINE FAILURE AND RECOVERY</td></tr>
+<tr><td>O14940-26</td><td>TPA</td><td data-orden="2026-07-01 10:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - UNSTABILIZED APPROACH GO AROUND</td></tr>
+<tr><td>O14954-26</td><td>AVA</td><td data-orden="2026-07-01 15:10">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - VERTICAL SPEED FLUCTUATIONS</td></tr>
+<tr><td>O14955-26</td><td>TPA</td><td data-orden="2026-07-01 15:47">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - GO AROUND DUE TO OVERSPEED</td></tr>
+<tr><td>O14957-26</td><td>AVA</td><td data-orden="2026-07-01 16:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO WIND</td></tr>
+<tr><td>O14958-26</td><td>AVA</td><td data-orden="2026-07-01 16:03">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - DOOR AFT CARGO WARNING</td></tr>
+<tr><td>O14961-26</td><td>GLG</td><td data-orden="2026-06-28 19:05">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1670</td></tr>
+<tr><td>O14964-26</td><td>AVA</td><td data-orden="2026-07-01 18:10">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - THRUST LEVER OVERSHOOT FLEX TAKEOFF</td></tr>
+<tr><td>O14968-26</td><td>AVA</td><td data-orden="2026-07-01 20:22">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - LONG LANDING RNP APPROACH</td></tr>
+<tr><td>O14975-26</td><td>TPA</td><td data-orden="2026-07-01 21:50">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - FLAPS CONFIGURATION WARNING</td></tr>
+<tr><td>O14976-26</td><td>AVA</td><td data-orden="2026-07-01 22:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - FOD REPORTED GO AROUND</td></tr>
+<tr><td>O14978-26</td><td>AVA</td><td data-orden="2026-07-01 22:50">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND YELLOW OBJECT RUNWAY</td></tr>
+<tr><td>O14980-26</td><td>TPA</td><td data-orden="2026-07-02 00:20">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>TPA - BRAKE OVERHEAT WARNING</td></tr>
+<tr><td>O14983-26</td><td>AVA</td><td data-orden="2026-07-02 05:14">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - ILS APPROACH COURSE DEVIATION</td></tr>
+<tr><td>O14997-26</td><td>AVA</td><td data-orden="2026-07-02 11:50">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE ILS APPROACH</td></tr>
+<tr><td>O15002-26</td><td>TAI</td><td data-orden="2026-07-01 14:01">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TAI - SPEED RESTRICTION EXCEEDANCE</td></tr>
+<tr><td>O15009-26</td><td>AVA</td><td data-orden="2026-07-02 16:35">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE APPROACH DUE TO WIND</td></tr>
+<tr><td>O15010-26</td><td>AVA</td><td data-orden="2026-07-02 16:57">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - LONG FLARE LANDING REVIEW</td></tr>
+<tr><td>O15019-26</td><td>AVA</td><td data-orden="2026-07-02 23:45">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE ILS APPROACH TAILWIND</td></tr>
+<tr><td>O15020-26</td><td>LRC</td><td data-orden="2026-07-02 12:45">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td>Acceptable (2)</td><td>LRC - GO AROUND AT SJO [PENDING SARA DATA]</td></tr>
+<tr><td>O15021-26</td><td>AVA</td><td data-orden="2026-07-02 23:50">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR OVERSHOOT UIO36</td></tr>
+<tr><td>O15022-26</td><td>TPA</td><td data-orden="2026-07-03 00:10">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TPA - FLAP LOAD RELIEF ACTIVATION</td></tr>
+<tr><td>O15023-26</td><td>TPA</td><td data-orden="2026-07-03 00:12">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TPA - FLAP RETRACTION DURING APPROACH</td></tr>
+<tr><td>O15027-26</td><td>AVA</td><td data-orden="2026-06-30 12:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR DURING APPROACH</td></tr>
+<tr><td>O15030-26</td><td>AVA</td><td data-orden="2026-07-03 05:15">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>AVA - EMERGENCY EQUIPMENT LABELING MISSING</td></tr>
+<tr><td>O15037-26</td><td>TAI</td><td data-orden="2026-07-03 11:00">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TAI - LOW APPROACH CROSSING THRESHOLD</td></tr>
+<tr><td>O15048-26</td><td>TPA</td><td data-orden="2026-06-28 16:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>TPA - WINDSHEAR GO AROUND</td></tr>
+<tr><td>O970-26</td><td>AVR</td><td data-orden="2026-01-14 19:30">14-Jan-2026</td><td class="dias-alto">170</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVR- PARTIAL INCAPACITATED CAPTAIN DURING</td></tr>
+<tr><td>O1190-26</td><td>AVA</td><td data-orden="2026-01-16 22:45">16-Jan-2026</td><td class="dias-alto">168</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (100)</td><td>AVA- GROUND COLLISION AT JFK [1597570]</td></tr>
+<tr><td>O2600-26</td><td>AVA</td><td data-orden="2026-02-01 16:20">01-Feb-2026</td><td class="dias-alto">152</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (101)</td><td>AVA- DAMAGE TO TAXIWAY LIGHT DUE TO SKIDDI</td></tr>
+<tr><td>O2667-26</td><td>AVA</td><td data-orden="2026-01-31 12:00">31-Jan-2026</td><td class="dias-alto">153</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>AVA- ECAM CAB PR SAFETY VALVE</td></tr>
+<tr><td>O3091-26</td><td>AVA</td><td data-orden="2026-02-06 20:24">06-Feb-2026</td><td class="dias-alto">147</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- IFSD DUE TO ENG 2 OIL LOW PRESS</td></tr>
+<tr><td>O4283-26</td><td>GLG</td><td data-orden="2026-02-22 12:00">22-Feb-2026</td><td class="dias-alto">131</td><td>In Progress</td><td>Full Investigation</td><td>Acceptable (10)</td><td>GLG- FALSE FIRE ALERT ENGINE 2 AT GYE GLG8</td></tr>
+<tr><td>O4686-26</td><td>AVR</td><td data-orden="2026-02-18 10:18">18-Feb-2026</td><td class="dias-alto">135</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR - EXCESSIVE FLAPS ALT DURING DESCENT A</td></tr>
+<tr><td>O4687-26</td><td>AVA</td><td data-orden="2026-02-20 18:21">20-Feb-2026</td><td class="dias-alto">133</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVA - EXCESSIVE FLAPS ALT DURING DESCENT A</td></tr>
+<tr><td>O4811-26</td><td>AVA</td><td data-orden="2026-02-25 12:00">25-Feb-2026</td><td class="dias-alto">128</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>AVA- ELAC 1 PITCH FAULT (RTO) ID1628007</td></tr>
+<tr><td>O5283-26</td><td>AVR</td><td data-orden="2026-03-01 17:30">01-Mar-2026</td><td class="dias-alto">124</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR- TRAFFIC AVOIDANCE AND WEATHER DEVIATI</td></tr>
+<tr><td>O5449-26</td><td>AVA</td><td data-orden="2026-03-02 17:00">02-Mar-2026</td><td class="dias-alto">123</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (21)</td><td>AVA- WRONG FLIGHT PROCEDURE</td></tr>
+<tr><td>O5501-26</td><td>AVR</td><td data-orden="2026-03-04 22:24">04-Mar-2026</td><td class="dias-alto">121</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>AVR- MODERATE TURBULENCE DURING CRUISE TO</td></tr>
+<tr><td>O5830-26</td><td>TNO</td><td data-orden="2026-03-08 12:00">08-Mar-2026</td><td class="dias-alto">117</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (50)</td><td>TNO- GO AROUND DUE TO GPWS TERRAIN AT SAP</td></tr>
+<tr><td>O6240-26</td><td>GLG</td><td data-orden="2026-03-13 04:30">13-Mar-2026</td><td class="dias-alto">112</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (21)</td><td>GLG- SMOKE IN CABIN (PED) AT BOG GLG8395</td></tr>
+<tr><td>O7049-26</td><td>AVA</td><td data-orden="2026-03-23 00:00">23-Mar-2026</td><td class="dias-alto">103</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- ATB DUE TO FLAPS LOCKED AT BOG AV075</td></tr>
+<tr><td>O7240-26</td><td>GLG</td><td data-orden="2026-03-25 18:38">25-Mar-2026</td><td class="dias-alto">100</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>GLG- GPWS PULL UP AT UIO GLG8373 [1644072]</td></tr>
+<tr><td>O7264-26</td><td>AVA</td><td data-orden="2026-03-24 18:36">24-Mar-2026</td><td class="dias-alto">101</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- ATB DUE TO CAB PR EXCESS CAB ALT + CA</td></tr>
+<tr><td>O7533-26</td><td>Otros</td><td data-orden="2026-03-27 12:00">27-Mar-2026</td><td class="dias-alto">98</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVAOMA- ATB DUE TO LANDING GEAR FAILED TO</td></tr>
+<tr><td>O7576-26</td><td>GLG</td><td data-orden="2026-03-28 08:40">28-Mar-2026</td><td class="dias-alto">97</td><td>In Progress</td><td>Full Investigation</td><td>Intolerable (502)</td><td>GLG- AIRCRAFT UPSET ANG EGPWS CAUTIONS AT</td></tr>
+<tr><td>O7830-26</td><td>AVR</td><td data-orden="2026-03-31 11:30">31-Mar-2026</td><td class="dias-alto">94</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR- POSIBLE DESVIATION G/S APP AT BOG 14R</td></tr>
+<tr><td>O8226-26</td><td>TAI</td><td data-orden="2026-04-03 19:30">03-Apr-2026</td><td class="dias-alto">91</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- GPWS ACTIVATION TOO LOW FLAPS AT XPL</td></tr>
+<tr><td>O8934-26</td><td>TNO</td><td data-orden="2026-04-14 12:00">14-Apr-2026</td><td class="dias-alto">80</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>TNO- TAWS CAUTION TERRAIN AHEAD ALARM AT S</td></tr>
+<tr><td>O9162-26</td><td>TPA</td><td data-orden="2026-04-18 02:30">18-Apr-2026</td><td class="dias-alto">76</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TPA- PRESSURIZATION LEAK</td></tr>
+<tr><td>O9252-26</td><td>TAI</td><td data-orden="2026-04-19 08:49">19-Apr-2026</td><td class="dias-alto">75</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- TIRE DEFLATED [#3 AND#4] AFTER LANDIN</td></tr>
+<tr><td>O9278-26</td><td>AVR</td><td data-orden="2026-04-17 12:00">17-Apr-2026</td><td class="dias-alto">77</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR- HOLD BAGGAGE IN CABIN SMR-BOG</td></tr>
+<tr><td>O9483-26</td><td>AVR</td><td data-orden="2026-04-19 13:17">19-Apr-2026</td><td class="dias-alto">75</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVR- UNSTABILIZED APPROACH AT BOG GROUND S</td></tr>
+<tr><td>O9781-26</td><td>AVA</td><td data-orden="2026-04-26 18:50">26-Apr-2026</td><td class="dias-alto">68</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- TAKEOFF WITHOUT AUTHORIZATION [166560</td></tr>
+<tr><td>O9938-26</td><td>GLG</td><td data-orden="2026-04-26 19:40">26-Apr-2026</td><td class="dias-alto">68</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (21)</td><td>GLG- HIGH VERTICAL G IN WET CONDITIONS AT</td></tr>
+<tr><td>O9971-26</td><td>TAI</td><td data-orden="2026-04-28 14:50">28-Apr-2026</td><td class="dias-alto">66</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- INCORRECT GO AROUND AT YYZ TAI324 [16</td></tr>
+<tr><td>O10170-26</td><td>TAI</td><td data-orden="2026-05-01 01:40">01-May-2026</td><td class="dias-alto">63</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- ABNORMAL BRAKE TEMPERATURE RISE AND T</td></tr>
+<tr><td>O10386-26</td><td>TAI</td><td data-orden="2026-05-04 05:00">04-May-2026</td><td class="dias-alto">60</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TAI- LATE REVERSE DEPLOYMENT AT SAL TAI 57</td></tr>
+<tr><td>O10669-26</td><td>TNO</td><td data-orden="2026-05-07 12:00">07-May-2026</td><td class="dias-alto">57</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>TNO-TCAS RA AT LAX</td></tr>
+<tr><td>O10843-26</td><td>GUG</td><td data-orden="2026-04-28 06:37">28-Apr-2026</td><td class="dias-alto">66</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GUG- NO REVERSERS USE UPON LANDING AT FRS</td></tr>
+<tr><td>O10852-26</td><td>GLG</td><td data-orden="2026-05-03 17:36">03-May-2026</td><td class="dias-alto">61</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- NO REVERSERS USE UPON LANDING AT GYE</td></tr>
+<tr><td>O10854-26</td><td>TNO</td><td data-orden="2026-04-21 12:00">21-Apr-2026</td><td class="dias-alto">73</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (10)</td><td>TNO- TCAS TA DURING APPROACH AT LAX [NO DA</td></tr>
+<tr><td>O10857-26</td><td>AVA</td><td data-orden="2026-05-04 13:33">04-May-2026</td><td class="dias-alto">60</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT BOG LATE SET</td></tr>
+<tr><td>O10858-26</td><td>AVA</td><td data-orden="2026-05-07 17:09">07-May-2026</td><td class="dias-alto">57</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT BOG DUE TO L</td></tr>
+<tr><td>O10940-26</td><td>AVA</td><td data-orden="2026-05-11 22:15">11-May-2026</td><td class="dias-alto">53</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- LONG LANDING AT BOG [1678608]</td></tr>
+<tr><td>O11090-26</td><td>GLG</td><td data-orden="2026-05-12 12:00">12-May-2026</td><td class="dias-alto">52</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>GLG- FLIGHT DIVERTED TO PTY DUE TO ECAM HY</td></tr>
+<tr><td>O11167-26</td><td>TPA</td><td data-orden="2026-05-14 18:00">14-May-2026</td><td class="dias-alto">50</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TPA- GO AROUND AT GUA [1680161]</td></tr>
+<tr><td>O11243-26</td><td>GLG</td><td data-orden="2026-05-01 10:10">01-May-2026</td><td class="dias-alto">63</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>GLG- FLEX INSERTION AT MEC GLG1691 [167078</td></tr>
+<tr><td>O11402-26</td><td>AVA</td><td data-orden="2026-05-18 23:40">18-May-2026</td><td class="dias-alto">46</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- INCORRECT TAKE OFF CALCULATIONS AT BO</td></tr>
+<tr><td>O11416-26</td><td>AVA</td><td data-orden="2026-05-16 09:33">16-May-2026</td><td class="dias-alto">48</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT CCS DUE TO U</td></tr>
+<tr><td>O11530-26</td><td>TNO</td><td data-orden="2026-05-18 12:00">18-May-2026</td><td class="dias-alto">46</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TNO- REJECTED TAKEOFF [1680312]</td></tr>
+<tr><td>O11804-26</td><td>TAI</td><td data-orden="2026-05-23 11:20">23-May-2026</td><td class="dias-alto">41</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>TAI- TCAS RA ADJUST VERTICAL SPEED AT SJO</td></tr>
+<tr><td>O11830-26</td><td>TPA</td><td data-orden="2026-05-23 22:55">23-May-2026</td><td class="dias-alto">41</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>TPA- FLAP LOAD RELIEF [1688238]</td></tr>
+<tr><td>O11868-26</td><td>TPA</td><td data-orden="2026-05-15 10:36">15-May-2026</td><td class="dias-alto">49</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>TPA- GO AROUND AT GUA [1680161]</td></tr>
+<tr><td>O11955-26</td><td>AVA</td><td data-orden="2026-05-20 12:37">20-May-2026</td><td class="dias-alto">44</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT ADZ LATE SET</td></tr>
+<tr><td>O12111-26</td><td>TNO</td><td data-orden="2026-04-29 12:00">29-Apr-2026</td><td class="dias-alto">65</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TNO- LONG LANDING AT NLU [1671819]</td></tr>
+<tr><td>O12168-26</td><td>AVA</td><td data-orden="2026-05-28 21:50">28-May-2026</td><td class="dias-alto">36</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (100)</td><td>AVA- PARKING BRAKE FAULT</td></tr>
+<tr><td>O12204-26</td><td>TNO</td><td data-orden="2026-05-06 12:00">06-May-2026</td><td class="dias-alto">58</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TNO- UNSTABILIZED APPROACH AT GUA [1675039</td></tr>
+<tr><td>O12308-26</td><td>TPA</td><td data-orden="2026-05-30 05:40">30-May-2026</td><td class="dias-alto">34</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>TPA- GO AROUND AT MDE [1692718]</td></tr>
+<tr><td>O12337-26</td><td>AVA</td><td data-orden="2026-05-31 02:50">31-May-2026</td><td class="dias-alto">33</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- RUNWAY INCURSION AT MIA [1690859]</td></tr>
+<tr><td>O12409-26</td><td>GLG</td><td data-orden="2026-05-29 20:40">29-May-2026</td><td class="dias-alto">35</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- UNSTABILIZED APP AT UIO GLG1671 [1689</td></tr>
+<tr><td>O12437-26</td><td>TAI</td><td data-orden="2026-05-26 10:36">26-May-2026</td><td class="dias-alto">38</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TAI- UNSTABILIZED APPROACH LATE SETTING LA</td></tr>
+<tr><td>O12589-26</td><td>TAI</td><td data-orden="2026-05-29 13:28">29-May-2026</td><td class="dias-alto">35</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- VFE EXCEEDANCE AT IAD TAI582 [1689199</td></tr>
+<tr><td>O12657-26</td><td>AVA</td><td data-orden="2026-06-03 09:00">03-Jun-2026</td><td>30</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- ATB DUE TO ECAM AIR ENG BLEED 1+2 FAU</td></tr>
+<tr><td>O12738-26</td><td>GLG</td><td data-orden="2026-06-02 13:55">02-Jun-2026</td><td class="dias-alto">31</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- UNSTABILIZED APPROACH AT GPS DUE TO L</td></tr>
+<tr><td>O12754-26</td><td>AVA</td><td data-orden="2026-06-04 11:30">04-Jun-2026</td><td>29</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>AVA- TCAS RA BOG [1693805]</td></tr>
+<tr><td>O12793-26</td><td>AVA</td><td data-orden="2026-06-04 17:24">04-Jun-2026</td><td>29</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (20)</td><td>AVA- MAYDAY DECLARED DUE TO ELEC IDG 1 OIL</td></tr>
+<tr><td>O12837-26</td><td>AVA</td><td data-orden="2026-06-05 09:45">05-Jun-2026</td><td>28</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (10)</td><td>AVA- BOUNCED LANDING SKBO 14L [1693392]</td></tr>
+<tr><td>O13033-26</td><td>AVA</td><td data-orden="2026-06-06 11:54">06-Jun-2026</td><td>27</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVA- ALTERNATE LAW AFTER ADIUR3 FAULT [169</td></tr>
+<tr><td>O13174-26</td><td>AVA</td><td data-orden="2026-06-09 05:01">09-Jun-2026</td><td>24</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (10)</td><td>AVA- FLIGHT DIVERTED TO CLO WITH MINIMUM F</td></tr>
+<tr><td>O13247-26</td><td>AVA</td><td data-orden="2026-06-10 12:50">10-Jun-2026</td><td>23</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- GPWS ALERTS DUE TO GPS INTERFERENCE [</td></tr>
+<tr><td>O13259-26</td><td>AVA</td><td data-orden="2026-06-09 09:02">09-Jun-2026</td><td>24</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA - ALTERNATE LAW DURING DESCENT AT LET</td></tr>
+<tr><td>O13299-26</td><td>TPA</td><td data-orden="2026-06-10 13:55">10-Jun-2026</td><td>23</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TPA- FLAP SELECTION OVER FL200 [1696439]</td></tr>
+<tr><td>O13306-26</td><td>AVA</td><td data-orden="2026-06-09 15:00">09-Jun-2026</td><td>24</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVA- UNESPECTED SUDDEN BRAKING</td></tr>
+<tr><td>O13310-26</td><td>Otros</td><td data-orden="2026-06-11 19:30">11-Jun-2026</td><td>22</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AT-COL-TCP 12277</td></tr>
+<tr><td>O13513-26</td><td>AVR</td><td data-orden="2026-06-13 16:32">13-Jun-2026</td><td>20</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVR- BIRD STRIKE DAMAGE WITHIN LIMITS AT S</td></tr>
+<tr><td>O13666-26</td><td>TAI</td><td data-orden="2026-06-14 02:30">14-Jun-2026</td><td>19</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TAI- UNSTABILIZED APPROACH DUE TO LATE GRO</td></tr>
+<tr><td>O13719-26</td><td>TAI</td><td data-orden="2026-06-17 04:45">17-Jun-2026</td><td>16</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TAI- BANKING EXCEDENCE AT JFK TAI568 [1700</td></tr>
+<tr><td>O13797-26</td><td>AVA</td><td data-orden="2026-06-16 14:00">16-Jun-2026</td><td>17</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>AVA - TCAS RESOLUTION ADVISORY DURING CLIM</td></tr>
+<tr><td>O13871-26</td><td>TPA</td><td data-orden="2026-06-18 18:30">18-Jun-2026</td><td>15</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TPA- LG NOT DOWN ON ECAM DURING APPROACH [</td></tr>
+<tr><td>O13953-26</td><td>TAI</td><td data-orden="2026-06-17 07:10">17-Jun-2026</td><td>16</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TAI- UNSTABILIZED APPROACH AT SAL DUE TO G</td></tr>
+<tr><td>O14067-26</td><td>AVA</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (100)</td><td>AVA- FUSELAGE SCRATCH AND DENT DAMAGE WITH</td></tr>
+<tr><td>O14249-26</td><td>GLG</td><td data-orden="2026-06-06 22:53">06-Jun-2026</td><td>27</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- UNSTABILIZED APPROACH AT MIA DUE TO G</td></tr>
+<tr><td>O14351-26</td><td>AVA</td><td data-orden="2026-06-25 00:04">25-Jun-2026</td><td>8</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (100)</td><td>AVA - ATB STRUCTURAL VIBRATION DUE TO ACCE</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+    <details class="seccion" >
+      <summary>
+        <span class="num">3</span>
+        <span class="titulo-sec">Eventos en Tasks sin tipo de investigación en Bitácora<small>Tareas activas cuya ocurrencia no tiene investigación asignada</small></span>
+        <span class="badge badge-ok">0</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th>COA</th><th>Título (Bitácora)</th><th>Progreso</th><th>Vencimiento</th><th>Finalización</th><th>Estado Bitácora</th></tr></thead>
+          <tbody><tr><td class="vacio" colspan="7">Sin registros ✓</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+    <details class="seccion" >
+      <summary>
+        <span class="num">4</span>
+        <span class="titulo-sec">Tasks completadas con evento aún OPEN en Bitácora<small>La tarea se cerró en Planner pero la ocurrencia sigue abierta</small></span>
+        <span class="badge badge-ok">0</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th>COA</th><th>Título (Bitácora)</th><th>Progreso</th><th>Vencimiento</th><th>Finalización</th><th>Estado Bitácora</th></tr></thead>
+          <tbody><tr><td class="vacio" colspan="7">Sin registros ✓</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+    <details class="seccion" >
+      <summary>
+        <span class="num">5</span>
+        <span class="titulo-sec">Tasks vencidas<small>Tareas no completadas con fecha de vencimiento anterior a hoy</small></span>
+        <span class="badge badge-alerta">4</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th>COA</th><th>Título (Bitácora)</th><th>Progreso</th><th>Vencimiento</th><th>Finalización</th><th>Estado Bitácora</th></tr></thead>
+          <tbody><tr><td>O12322-26</td><td>AVR</td><td>AVR- SUSPECTED LONG LANDING [PENDING DATA]</td><td>No iniciada</td><td data-orden="2026-06-05 00:00">05-Jun-2026</td><td></td><td>Open</td></tr>
+<tr><td>O13193-26</td><td>AVA</td><td>AVA- ATC EVENT COMMUNICATIONS AT MAD [1696</td><td>En curso</td><td data-orden="2026-06-16 00:00">16-Jun-2026</td><td></td><td>Open</td></tr>
+<tr><td>O13735-26</td><td>AVA</td><td>AVA- GPWS GLIDESLOPE WARNING ACTIVATION AT</td><td>No iniciada</td><td data-orden="2026-07-03 00:00">03-Jul-2026</td><td></td><td>Open</td></tr>
+<tr><td>O13741-26</td><td>AVA</td><td>AVA - WINDSHEAR FINAL APPROACH PUJ [169956</td><td>No iniciada</td><td data-orden="2026-07-03 00:00">03-Jul-2026</td><td></td><td>Open</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+    <details class="seccion" >
+      <summary>
+        <span class="num">6</span>
+        <span class="titulo-sec">Eventos OPEN en Bitácora que sí tienen Task<small>Ocurrencias abiertas con tarea activa (no completada) en Planner</small></span>
+        <span class="badge badge-alerta">6</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th>COA</th><th>Fecha</th><th>Días abierta</th><th>Estado</th><th>Investigación</th><th>Riesgo</th><th>Descripción</th></tr></thead>
+          <tbody><tr><td>O12322-26</td><td>AVR</td><td data-orden="2026-05-30 21:30">30-May-2026</td><td class="dias-alto">34</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVR- SUSPECTED LONG LANDING [PENDING DATA]</td></tr>
+<tr><td>O13193-26</td><td>AVA</td><td data-orden="2026-06-08 21:50">08-Jun-2026</td><td>25</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVA- ATC EVENT COMMUNICATIONS AT MAD [1696</td></tr>
+<tr><td>O13715-26</td><td>AVR</td><td data-orden="2026-06-13 09:16">13-Jun-2026</td><td>20</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVR - LOW SPEED FLIGHT DURING CLB AT BOG [</td></tr>
+<tr><td>O13735-26</td><td>AVA</td><td data-orden="2026-06-14 06:17">14-Jun-2026</td><td>19</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVA- GPWS GLIDESLOPE WARNING ACTIVATION AT</td></tr>
+<tr><td>O13741-26</td><td>AVA</td><td data-orden="2026-06-13 11:40">13-Jun-2026</td><td>20</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (2)</td><td>AVA - WINDSHEAR FINAL APPROACH PUJ [169956</td></tr>
+<tr><td>O14015-26</td><td>TAI</td><td data-orden="2026-06-20 00:30">20-Jun-2026</td><td>13</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (10)</td><td>TAI - LANDING PERFORMANCE REEVALUATION AT</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+  
+    <details class="seccion" >
+      <summary>
+        <span class="num">≡</span>
+        <span class="titulo-sec">Listado completo de ocurrencias FLT con nivel de riesgo<small>Todas las ocurrencias activas (Open + In Progress) de todos los COA</small></span>
+        <span class="badge badge-alerta">277</span>
+        <span class="flecha">▾</span>
+      </summary>
+      <div class="tabla-wrap">
+        <table>
+          <thead><tr><th>Evento</th><th>COA</th><th>Fecha</th><th>Días abierta</th><th>Estado</th><th>Investigación</th><th>Riesgo</th><th>Descripción</th></tr></thead>
+          <tbody><tr><td>O15030-26</td><td>AVA</td><td data-orden="2026-07-03 05:15">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>AVA - EMERGENCY EQUIPMENT LABELING MISSING</td></tr>
+<tr><td>O15021-26</td><td>AVA</td><td data-orden="2026-07-02 23:50">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR OVERSHOOT UIO36</td></tr>
+<tr><td>O15019-26</td><td>AVA</td><td data-orden="2026-07-02 23:45">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE ILS APPROACH TAILWIND</td></tr>
+<tr><td>O15010-26</td><td>AVA</td><td data-orden="2026-07-02 16:57">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - LONG FLARE LANDING REVIEW</td></tr>
+<tr><td>O15009-26</td><td>AVA</td><td data-orden="2026-07-02 16:35">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE APPROACH DUE TO WIND</td></tr>
+<tr><td>O14997-26</td><td>AVA</td><td data-orden="2026-07-02 11:50">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE ILS APPROACH</td></tr>
+<tr><td>O14983-26</td><td>AVA</td><td data-orden="2026-07-02 05:14">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>AVA - ILS APPROACH COURSE DEVIATION</td></tr>
+<tr><td>O14978-26</td><td>AVA</td><td data-orden="2026-07-01 22:50">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND YELLOW OBJECT RUNWAY</td></tr>
+<tr><td>O14976-26</td><td>AVA</td><td data-orden="2026-07-01 22:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - FOD REPORTED GO AROUND</td></tr>
+<tr><td>O14968-26</td><td>AVA</td><td data-orden="2026-07-01 20:22">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - LONG LANDING RNP APPROACH</td></tr>
+<tr><td>O14964-26</td><td>AVA</td><td data-orden="2026-07-01 18:10">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - THRUST LEVER OVERSHOOT FLEX TAKEOFF</td></tr>
+<tr><td>O14958-26</td><td>AVA</td><td data-orden="2026-07-01 16:03">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - DOOR AFT CARGO WARNING</td></tr>
+<tr><td>O14957-26</td><td>AVA</td><td data-orden="2026-07-01 16:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO WIND</td></tr>
+<tr><td>O14954-26</td><td>AVA</td><td data-orden="2026-07-01 15:10">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - VERTICAL SPEED FLUCTUATIONS</td></tr>
+<tr><td>O14938-26</td><td>AVA</td><td data-orden="2026-07-01 10:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>AVA - ENGINE FAILURE AND RECOVERY</td></tr>
+<tr><td>O14890-26</td><td>AVA</td><td data-orden="2026-06-30 18:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- CONTROL CABIN</td></tr>
+<tr><td>O14929-26</td><td>AVA</td><td data-orden="2026-06-30 16:30">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO TURBULENCE AND WIND</td></tr>
+<tr><td>O14886-26</td><td>AVA</td><td data-orden="2026-06-30 12:48">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND AT SMR AV9720</td></tr>
+<tr><td>O15027-26</td><td>AVA</td><td data-orden="2026-06-30 12:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR DURING APPROACH</td></tr>
+<tr><td>O14846-26</td><td>AVA</td><td data-orden="2026-06-30 08:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND MDE</td></tr>
+<tr><td>O14880-26</td><td>AVA</td><td data-orden="2026-06-30 07:50">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND AT MDE</td></tr>
+<tr><td>O14925-26</td><td>AVA</td><td data-orden="2026-06-30 07:45">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND LOW VISIBILITY</td></tr>
+<tr><td>O14875-26</td><td>AVA</td><td data-orden="2026-06-29 23:30">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA- TURBULENCE</td></tr>
+<tr><td>O14792-26</td><td>AVA</td><td data-orden="2026-06-29 21:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA- POSITIVE LANDING</td></tr>
+<tr><td>O14752-26</td><td>AVA</td><td data-orden="2026-06-29 16:28">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - WIND SHEAR DURING FINAL APPROACH</td></tr>
+<tr><td>O14772-26</td><td>AVA</td><td data-orden="2026-06-29 16:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - CAUTION TERRAIN AHEAD GO AROUND</td></tr>
+<tr><td>O14790-26</td><td>AVA</td><td data-orden="2026-06-29 15:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO WIND SHEAR</td></tr>
+<tr><td>O14747-26</td><td>AVA</td><td data-orden="2026-06-29 13:50">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - ILS APPROACH GO AROUND DUE TURBULENC</td></tr>
+<tr><td>O14762-26</td><td>AVA</td><td data-orden="2026-06-29 02:30">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO UNSTABLE APPROACH</td></tr>
+<tr><td>O14805-26</td><td>AVA</td><td data-orden="2026-06-29 02:20">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND TURBULENCE</td></tr>
+<tr><td>O14705-26</td><td>AVA</td><td data-orden="2026-06-29 02:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - OVERSHOOT DUE TO WIND</td></tr>
+<tr><td>O14759-26</td><td>AVA</td><td data-orden="2026-06-29 02:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO HIGH ALTITUDE</td></tr>
+<tr><td>O14743-26</td><td>AVA</td><td data-orden="2026-06-28 19:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND LONG FLARE</td></tr>
+<tr><td>O14709-26</td><td>AVA</td><td data-orden="2026-06-28 18:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - INTERNATIONAL FLIGHT DIVERSION DELAY</td></tr>
+<tr><td>O14714-26</td><td>AVA</td><td data-orden="2026-06-28 18:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - MECHANICAL FAILURE ANNOUNCEMENT DELA</td></tr>
+<tr><td>O14696-26</td><td>AVA</td><td data-orden="2026-06-28 16:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- OVERSPEED UIO</td></tr>
+<tr><td>O14842-26</td><td>AVA</td><td data-orden="2026-06-28 15:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- SEAT BELT SIGN OFF</td></tr>
+<tr><td>O14685-26</td><td>AVA</td><td data-orden="2026-06-28 14:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - VLS CALCULATION DISCREPANCY</td></tr>
+<tr><td>O14690-26</td><td>AVA</td><td data-orden="2026-06-28 13:15">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - FLAPS CONFIGURATION ERROR</td></tr>
+<tr><td>O14919-26</td><td>AVA</td><td data-orden="2026-06-28 12:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - WINDSHEAR GO AROUND</td></tr>
+<tr><td>O14698-26</td><td>AVA</td><td data-orden="2026-06-28 12:27">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - GO AROUND DUE TO UNSTABLE FLARE</td></tr>
+<tr><td>O14677-26</td><td>AVA</td><td data-orden="2026-06-28 12:22">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - UNSTABLE APPROACH GO AROUND</td></tr>
+<tr><td>O14835-26</td><td>AVA</td><td data-orden="2026-06-28 12:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - DIVERTED FLIGHT NO TECHNICIAN</td></tr>
+<tr><td>O14466-26</td><td>AVA</td><td data-orden="2026-06-28 11:15">28-Jun-2026</td><td>5</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (50)</td><td>AVA- GPWS PULL UP AT CUC [1709395]</td></tr>
+<tr><td>O14666-26</td><td>AVA</td><td data-orden="2026-06-28 10:34">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA - COMPLEX RNP Z APPROACH CONDITIONS</td></tr>
+<tr><td>O14655-26</td><td>AVA</td><td data-orden="2026-06-28 09:34">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>AVA- UNSTABILIZED APP</td></tr>
+<tr><td>O14766-26</td><td>AVA</td><td data-orden="2026-06-28 09:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (2)</td><td>AVA- GO AROUND PSO</td></tr>
+<tr><td>O14643-26</td><td>AVA</td><td data-orden="2026-06-28 03:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- GO AROUND</td></tr>
+<tr><td>O14623-26</td><td>AVA</td><td data-orden="2026-06-27 18:12">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- THRUST LEVERS VARIATION DURING TAKE O</td></tr>
+<tr><td>O14578-26</td><td>AVA</td><td data-orden="2026-06-27 12:50">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- SINK RATE ON APP VLN</td></tr>
+<tr><td>O14647-26</td><td>AVA</td><td data-orden="2026-06-27 12:20">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- APPROXIMATION MDE</td></tr>
+<tr><td>O14579-26</td><td>AVA</td><td data-orden="2026-06-27 12:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- GPWS SINK RATE</td></tr>
+<tr><td>O14553-26</td><td>AVA</td><td data-orden="2026-06-27 09:20">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- REJECTED LANDING</td></tr>
+<tr><td>O14549-26</td><td>AVA</td><td data-orden="2026-06-27 09:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- FLAPS OVERSPEED</td></tr>
+<tr><td>O14507-26</td><td>AVA</td><td data-orden="2026-06-27 06:24">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>AVA- PRESURIZATION CONDITION</td></tr>
+<tr><td>O14602-26</td><td>AVA</td><td data-orden="2026-06-26 14:30">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- LONG FLARE LPB</td></tr>
+<tr><td>O14487-26</td><td>AVA</td><td data-orden="2026-06-26 12:00">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- APP ILS Z 18R LEMD</td></tr>
+<tr><td>O14767-26</td><td>AVA</td><td data-orden="2026-06-26 06:05">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA- REJECTED LANDING AT CTG [1706001]</td></tr>
+<tr><td>O14911-26</td><td>AVA</td><td data-orden="2026-06-26 06:00">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td></td><td>AVA - TAILWIND GO AROUND ALTERNATE LANDING</td></tr>
+<tr><td>O14478-26</td><td>AVA</td><td data-orden="2026-06-25 23:20">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- POSSIBLE OVERSPEED</td></tr>
+<tr><td>O14640-26</td><td>AVA</td><td data-orden="2026-06-25 15:43">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND PSO</td></tr>
+<tr><td>O14381-26</td><td>AVA</td><td data-orden="2026-06-25 12:10">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- COMMUNICATIONS FAILURE</td></tr>
+<tr><td>O14571-26</td><td>AVA</td><td data-orden="2026-06-25 11:52">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- 180 TAKE OFF RWY 01</td></tr>
+<tr><td>O14611-26</td><td>AVA</td><td data-orden="2026-06-25 11:22">25-Jun-2026</td><td>8</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (10)</td><td>AVA- SUSPECTED UNSTABILIZED APPROACH AT CU</td></tr>
+<tr><td>O14449-26</td><td>AVA</td><td data-orden="2026-06-25 09:46">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- LIGHTNING STRIKE</td></tr>
+<tr><td>O14518-26</td><td>AVA</td><td data-orden="2026-06-25 09:12">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- FLAPS OVERSPEDD</td></tr>
+<tr><td>O14420-26</td><td>AVA</td><td data-orden="2026-06-25 08:55">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- UNSTABILIZED APP</td></tr>
+<tr><td>O14413-26</td><td>AVA</td><td data-orden="2026-06-25 05:40">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>AVA- OVERSPEED F2</td></tr>
+<tr><td>O14351-26</td><td>AVA</td><td data-orden="2026-06-25 00:04">25-Jun-2026</td><td>8</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (100)</td><td>AVA - ATB STRUCTURAL VIBRATION DUE TO ACCE</td></tr>
+<tr><td>O14687-26</td><td>AVA</td><td data-orden="2026-06-24 23:15">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND CUC</td></tr>
+<tr><td>O14906-26</td><td>AVA</td><td data-orden="2026-06-24 19:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA - FLARE FLOAT GO AROUND</td></tr>
+<tr><td>O14340-26</td><td>AVA</td><td data-orden="2026-06-24 13:50">24-Jun-2026</td><td>9</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (10)</td><td>AVA- SUSPECTED UNSTABILIZED APPROACH AT CU</td></tr>
+<tr><td>O14471-26</td><td>AVA</td><td data-orden="2026-06-24 11:55">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- GNSS INTERFERENCE</td></tr>
+<tr><td>O14387-26</td><td>AVA</td><td data-orden="2026-06-24 07:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>AVA- POSSIBLE UNSTABILIZED APP</td></tr>
+<tr><td>O14539-26</td><td>AVA</td><td data-orden="2026-06-23 22:55">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- DUAL INPUT DURING FINAL APP AT BOG. [</td></tr>
+<tr><td>O14363-26</td><td>AVA</td><td data-orden="2026-06-23 22:05">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- ATC COMUNICATION EVENT AT PEI [PENDIN</td></tr>
+<tr><td>O14258-26</td><td>AVA</td><td data-orden="2026-06-23 14:04">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- LONG FLARE AT BOG [PENDING DATA]</td></tr>
+<tr><td>O14430-26</td><td>AVA</td><td data-orden="2026-06-23 13:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- TIRE SPEED LIMIT EXCEEDED AT CUZ [170</td></tr>
+<tr><td>O14195-26</td><td>AVA</td><td data-orden="2026-06-23 12:40">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA. GO AROUND BOG</td></tr>
+<tr><td>O14297-26</td><td>AVA</td><td data-orden="2026-06-23 11:30">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA - HARD LANDING CROSSWIND</td></tr>
+<tr><td>O14523-26</td><td>AVA</td><td data-orden="2026-06-23 11:05">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- SOP CONFIGURATION</td></tr>
+<tr><td>O14398-26</td><td>AVA</td><td data-orden="2026-06-23 10:04">23-Jun-2026</td><td>10</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH DUE TO LATE SET</td></tr>
+<tr><td>O14144-26</td><td>AVA</td><td data-orden="2026-06-22 09:50">22-Jun-2026</td><td>11</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- BANK OSCILLATIONS BOG [PENDING DATA]</td></tr>
+<tr><td>O14130-26</td><td>AVA</td><td data-orden="2026-06-22 00:13">22-Jun-2026</td><td>11</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- UNSTABILIZED APP [PENDING DATA]</td></tr>
+<tr><td>O14362-26</td><td>AVA</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- LACK OF COMMUNICATION [PENDING DATA]</td></tr>
+<tr><td>O14067-26</td><td>AVA</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (100)</td><td>AVA- FUSELAGE SCRATCH AND DENT DAMAGE WITH</td></tr>
+<tr><td>O14082-26</td><td>AVA</td><td data-orden="2026-06-21 11:40">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (2)</td><td>AVA- UNSTABILIZED APPROACH AT MEX [PENDING</td></tr>
+<tr><td>O14670-26</td><td>AVA</td><td data-orden="2026-06-21 04:40">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td></td><td>AVA- GO AROUND DUE TO RWY OCCUPIED</td></tr>
+<tr><td>O14045-26</td><td>AVA</td><td data-orden="2026-06-20 15:50">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>AVA- EMERGENCY DECLARATION (PAN-PAN-PAN)</td></tr>
+<tr><td>O14354-26</td><td>AVA</td><td data-orden="2026-06-20 13:38">20-Jun-2026</td><td>13</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (1)</td><td>AVA- GO AROUND AT BOG [1702464]</td></tr>
+<tr><td>O14459-26</td><td>AVA</td><td data-orden="2026-06-20 07:15">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>AVA- HIGH SPEED END OF THE RUNWAY BAQ</td></tr>
+<tr><td>O14107-26</td><td>AVA</td><td data-orden="2026-06-19 17:55">19-Jun-2026</td><td>14</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVA- TAKE OVER AND POSITIVE LANDING [17019</td></tr>
+<tr><td>O13991-26</td><td>AVA</td><td data-orden="2026-06-19 04:00">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td></td><td>AVA - SEVERE TURBULENCE APPROACH</td></tr>
+<tr><td>O13906-26</td><td>AVA</td><td data-orden="2026-06-18 17:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- PARKING PROCEDURE FAILURE</td></tr>
+<tr><td>O13941-26</td><td>AVA</td><td data-orden="2026-06-18 13:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - RAMP PROCEDURE NONCOMPLIANCE</td></tr>
+<tr><td>O14157-26</td><td>AVA</td><td data-orden="2026-06-18 08:15">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA IDLE REVERSE</td></tr>
+<tr><td>O13882-26</td><td>AVA</td><td data-orden="2026-06-18 05:00">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - RADIO COMMUNICATION FAILURE MAIQUETI</td></tr>
+<tr><td>O13880-26</td><td>AVA</td><td data-orden="2026-06-18 04:35">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - PFD SPEED INDICATION LOSS</td></tr>
+<tr><td>O13877-26</td><td>AVA</td><td data-orden="2026-06-18 00:40">18-Jun-2026</td><td>15</td><td>Open</td><td></td><td></td><td>AVA - FLAPS OVERSPEED DURING APPROACH</td></tr>
+<tr><td>O13797-26</td><td>AVA</td><td data-orden="2026-06-16 14:00">16-Jun-2026</td><td>17</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>AVA - TCAS RESOLUTION ADVISORY DURING CLIM</td></tr>
+<tr><td>O13735-26</td><td>AVA</td><td data-orden="2026-06-14 06:17">14-Jun-2026</td><td>19</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVA- GPWS GLIDESLOPE WARNING ACTIVATION AT</td></tr>
+<tr><td>O13924-26</td><td>AVA</td><td data-orden="2026-06-13 20:00">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td></td><td>AVA GO AROUND RUNWAY OCCUPANCY</td></tr>
+<tr><td>O13741-26</td><td>AVA</td><td data-orden="2026-06-13 11:40">13-Jun-2026</td><td>20</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (2)</td><td>AVA - WINDSHEAR FINAL APPROACH PUJ [169956</td></tr>
+<tr><td>O13922-26</td><td>AVA</td><td data-orden="2026-06-11 12:00">11-Jun-2026</td><td>22</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (1)</td><td>AVA- UNSTABILIZED APPROACH WITH GO AROUND</td></tr>
+<tr><td>O13247-26</td><td>AVA</td><td data-orden="2026-06-10 12:50">10-Jun-2026</td><td>23</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- GPWS ALERTS DUE TO GPS INTERFERENCE [</td></tr>
+<tr><td>O13306-26</td><td>AVA</td><td data-orden="2026-06-09 15:00">09-Jun-2026</td><td>24</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVA- UNESPECTED SUDDEN BRAKING</td></tr>
+<tr><td>O13259-26</td><td>AVA</td><td data-orden="2026-06-09 09:02">09-Jun-2026</td><td>24</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA - ALTERNATE LAW DURING DESCENT AT LET</td></tr>
+<tr><td>O13174-26</td><td>AVA</td><td data-orden="2026-06-09 05:01">09-Jun-2026</td><td>24</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (10)</td><td>AVA- FLIGHT DIVERTED TO CLO WITH MINIMUM F</td></tr>
+<tr><td>O13193-26</td><td>AVA</td><td data-orden="2026-06-08 21:50">08-Jun-2026</td><td>25</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVA- ATC EVENT COMMUNICATIONS AT MAD [1696</td></tr>
+<tr><td>O13033-26</td><td>AVA</td><td data-orden="2026-06-06 11:54">06-Jun-2026</td><td>27</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVA- ALTERNATE LAW AFTER ADIUR3 FAULT [169</td></tr>
+<tr><td>O12837-26</td><td>AVA</td><td data-orden="2026-06-05 09:45">05-Jun-2026</td><td>28</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (10)</td><td>AVA- BOUNCED LANDING SKBO 14L [1693392]</td></tr>
+<tr><td>O12793-26</td><td>AVA</td><td data-orden="2026-06-04 17:24">04-Jun-2026</td><td>29</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (20)</td><td>AVA- MAYDAY DECLARED DUE TO ELEC IDG 1 OIL</td></tr>
+<tr><td>O12754-26</td><td>AVA</td><td data-orden="2026-06-04 11:30">04-Jun-2026</td><td>29</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>AVA- TCAS RA BOG [1693805]</td></tr>
+<tr><td>O12657-26</td><td>AVA</td><td data-orden="2026-06-03 09:00">03-Jun-2026</td><td>30</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- ATB DUE TO ECAM AIR ENG BLEED 1+2 FAU</td></tr>
+<tr><td>O12337-26</td><td>AVA</td><td data-orden="2026-05-31 02:50">31-May-2026</td><td class="dias-alto">33</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- RUNWAY INCURSION AT MIA [1690859]</td></tr>
+<tr><td>O12168-26</td><td>AVA</td><td data-orden="2026-05-28 21:50">28-May-2026</td><td class="dias-alto">36</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (100)</td><td>AVA- PARKING BRAKE FAULT</td></tr>
+<tr><td>O11955-26</td><td>AVA</td><td data-orden="2026-05-20 12:37">20-May-2026</td><td class="dias-alto">44</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT ADZ LATE SET</td></tr>
+<tr><td>O11402-26</td><td>AVA</td><td data-orden="2026-05-18 23:40">18-May-2026</td><td class="dias-alto">46</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- INCORRECT TAKE OFF CALCULATIONS AT BO</td></tr>
+<tr><td>O11416-26</td><td>AVA</td><td data-orden="2026-05-16 09:33">16-May-2026</td><td class="dias-alto">48</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT CCS DUE TO U</td></tr>
+<tr><td>O10940-26</td><td>AVA</td><td data-orden="2026-05-11 22:15">11-May-2026</td><td class="dias-alto">53</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- LONG LANDING AT BOG [1678608]</td></tr>
+<tr><td>O10858-26</td><td>AVA</td><td data-orden="2026-05-07 17:09">07-May-2026</td><td class="dias-alto">57</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT BOG DUE TO L</td></tr>
+<tr><td>O10857-26</td><td>AVA</td><td data-orden="2026-05-04 13:33">04-May-2026</td><td class="dias-alto">60</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- UNSTABILIZED APPROACH AT BOG LATE SET</td></tr>
+<tr><td>O9781-26</td><td>AVA</td><td data-orden="2026-04-26 18:50">26-Apr-2026</td><td class="dias-alto">68</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- TAKEOFF WITHOUT AUTHORIZATION [166560</td></tr>
+<tr><td>O7264-26</td><td>AVA</td><td data-orden="2026-03-24 18:36">24-Mar-2026</td><td class="dias-alto">101</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- ATB DUE TO CAB PR EXCESS CAB ALT + CA</td></tr>
+<tr><td>O7049-26</td><td>AVA</td><td data-orden="2026-03-23 00:00">23-Mar-2026</td><td class="dias-alto">103</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- ATB DUE TO FLAPS LOCKED AT BOG AV075</td></tr>
+<tr><td>O5449-26</td><td>AVA</td><td data-orden="2026-03-02 17:00">02-Mar-2026</td><td class="dias-alto">123</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (21)</td><td>AVA- WRONG FLIGHT PROCEDURE</td></tr>
+<tr><td>O4811-26</td><td>AVA</td><td data-orden="2026-02-25 12:00">25-Feb-2026</td><td class="dias-alto">128</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>AVA- ELAC 1 PITCH FAULT (RTO) ID1628007</td></tr>
+<tr><td>O4687-26</td><td>AVA</td><td data-orden="2026-02-20 18:21">20-Feb-2026</td><td class="dias-alto">133</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVA - EXCESSIVE FLAPS ALT DURING DESCENT A</td></tr>
+<tr><td>O3091-26</td><td>AVA</td><td data-orden="2026-02-06 20:24">06-Feb-2026</td><td class="dias-alto">147</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVA- IFSD DUE TO ENG 2 OIL LOW PRESS</td></tr>
+<tr><td>O2600-26</td><td>AVA</td><td data-orden="2026-02-01 16:20">01-Feb-2026</td><td class="dias-alto">152</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (101)</td><td>AVA- DAMAGE TO TAXIWAY LIGHT DUE TO SKIDDI</td></tr>
+<tr><td>O2667-26</td><td>AVA</td><td data-orden="2026-01-31 12:00">31-Jan-2026</td><td class="dias-alto">153</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>AVA- ECAM CAB PR SAFETY VALVE</td></tr>
+<tr><td>O1190-26</td><td>AVA</td><td data-orden="2026-01-16 22:45">16-Jan-2026</td><td class="dias-alto">168</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (100)</td><td>AVA- GROUND COLLISION AT JFK [1597570]</td></tr>
+<tr><td>O14814-26</td><td>AVR</td><td data-orden="2026-06-29 09:20">29-Jun-2026</td><td>4</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVR - RUNWAY ENTRY WITHOUT CLEARANCE</td></tr>
+<tr><td>O14091-26</td><td>AVR</td><td data-orden="2026-06-17 12:07">17-Jun-2026</td><td>16</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVR- GO AROUND BOG</td></tr>
+<tr><td>O13513-26</td><td>AVR</td><td data-orden="2026-06-13 16:32">13-Jun-2026</td><td>20</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVR- BIRD STRIKE DAMAGE WITHIN LIMITS AT S</td></tr>
+<tr><td>O13715-26</td><td>AVR</td><td data-orden="2026-06-13 09:16">13-Jun-2026</td><td>20</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVR - LOW SPEED FLIGHT DURING CLB AT BOG [</td></tr>
+<tr><td>O13923-26</td><td>AVR</td><td data-orden="2026-06-13 09:15">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td></td><td>AVR- FLAPS RETRACTION BELOW S SPEED</td></tr>
+<tr><td>O12322-26</td><td>AVR</td><td data-orden="2026-05-30 21:30">30-May-2026</td><td class="dias-alto">34</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>AVR- SUSPECTED LONG LANDING [PENDING DATA]</td></tr>
+<tr><td>O9483-26</td><td>AVR</td><td data-orden="2026-04-19 13:17">19-Apr-2026</td><td class="dias-alto">75</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>AVR- UNSTABILIZED APPROACH AT BOG GROUND S</td></tr>
+<tr><td>O9278-26</td><td>AVR</td><td data-orden="2026-04-17 12:00">17-Apr-2026</td><td class="dias-alto">77</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR- HOLD BAGGAGE IN CABIN SMR-BOG</td></tr>
+<tr><td>O7830-26</td><td>AVR</td><td data-orden="2026-03-31 11:30">31-Mar-2026</td><td class="dias-alto">94</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR- POSIBLE DESVIATION G/S APP AT BOG 14R</td></tr>
+<tr><td>O5501-26</td><td>AVR</td><td data-orden="2026-03-04 22:24">04-Mar-2026</td><td class="dias-alto">121</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>AVR- MODERATE TURBULENCE DURING CRUISE TO</td></tr>
+<tr><td>O5283-26</td><td>AVR</td><td data-orden="2026-03-01 17:30">01-Mar-2026</td><td class="dias-alto">124</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR- TRAFFIC AVOIDANCE AND WEATHER DEVIATI</td></tr>
+<tr><td>O4686-26</td><td>AVR</td><td data-orden="2026-02-18 10:18">18-Feb-2026</td><td class="dias-alto">135</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (1)</td><td>AVR - EXCESSIVE FLAPS ALT DURING DESCENT A</td></tr>
+<tr><td>O970-26</td><td>AVR</td><td data-orden="2026-01-14 19:30">14-Jan-2026</td><td class="dias-alto">170</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVR- PARTIAL INCAPACITATED CAPTAIN DURING</td></tr>
+<tr><td>O14887-26</td><td>GLG</td><td data-orden="2026-06-30 14:20">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GPWS SINK RATE DURING APP AT UIO GLG1</td></tr>
+<tr><td>O14873-26</td><td>GLG</td><td data-orden="2026-06-29 20:55">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT CUE GLG1606 [1709464]</td></tr>
+<tr><td>O14840-26</td><td>GLG</td><td data-orden="2026-06-29 16:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (2)</td><td>GLG- POSSIBLE SPEED EXCEEDANCE AT UIO GLG1</td></tr>
+<tr><td>O14871-26</td><td>GLG</td><td data-orden="2026-06-29 13:10">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO GYE GL</td></tr>
+<tr><td>O14844-26</td><td>GLG</td><td data-orden="2026-06-29 09:00">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- CROSSWIND DURING APP AT UIO GLG1623 [</td></tr>
+<tr><td>O14847-26</td><td>GLG</td><td data-orden="2026-06-28 21:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- DEVIATION PAPI PROFILE IN APP AT MEC</td></tr>
+<tr><td>O14869-26</td><td>GLG</td><td data-orden="2026-06-28 19:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1696</td></tr>
+<tr><td>O14961-26</td><td>GLG</td><td data-orden="2026-06-28 19:05">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1670</td></tr>
+<tr><td>O14837-26</td><td>GLG</td><td data-orden="2026-06-28 17:40">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO MEC GL</td></tr>
+<tr><td>O14753-26</td><td>GLG</td><td data-orden="2026-06-28 17:30">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO/ DEVERTION TO MEC GL</td></tr>
+<tr><td>O14843-26</td><td>GLG</td><td data-orden="2026-06-28 16:20">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- CROSSWIND DURING APP AT UIO GLG1633 [</td></tr>
+<tr><td>O14867-26</td><td>GLG</td><td data-orden="2026-06-28 15:55">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>GLG- FLIGHT DEPARTURE DELAY AT UIO GLG1610</td></tr>
+<tr><td>O14618-26</td><td>GLG</td><td data-orden="2026-06-27 17:22">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND DUE POSSIBLE V/S EXCEDANCE</td></tr>
+<tr><td>O14603-26</td><td>GLG</td><td data-orden="2026-06-27 16:25">27-Jun-2026</td><td>6</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (1)</td><td>GLG- GO AROUND AT UIO GLG1683 [1706294]</td></tr>
+<tr><td>O14771-26</td><td>GLG</td><td data-orden="2026-06-27 16:15">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT UIO GLG1633 [1707984]</td></tr>
+<tr><td>O14610-26</td><td>GLG</td><td data-orden="2026-06-27 06:55">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (10)</td><td>GLG- CACELLED TAKEOFF AT BOG GLG8385 [1707</td></tr>
+<tr><td>O14614-26</td><td>GLG</td><td data-orden="2026-06-26 18:45">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- GO AROUND AT GYE GLG8399 [1708691]</td></tr>
+<tr><td>O14635-26</td><td>GLG</td><td data-orden="2026-06-26 17:50">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GLG- VERTICAL SPEED EXCEEDANCE DURING APPR</td></tr>
+<tr><td>O13413-26</td><td>GLG</td><td data-orden="2026-06-11 15:10">11-Jun-2026</td><td>22</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>GLG- TURBULENCE DURING CLIMB AT EZE GLG839</td></tr>
+<tr><td>O14249-26</td><td>GLG</td><td data-orden="2026-06-06 22:53">06-Jun-2026</td><td>27</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- UNSTABILIZED APPROACH AT MIA DUE TO G</td></tr>
+<tr><td>O12738-26</td><td>GLG</td><td data-orden="2026-06-02 13:55">02-Jun-2026</td><td class="dias-alto">31</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- UNSTABILIZED APPROACH AT GPS DUE TO L</td></tr>
+<tr><td>O12409-26</td><td>GLG</td><td data-orden="2026-05-29 20:40">29-May-2026</td><td class="dias-alto">35</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- UNSTABILIZED APP AT UIO GLG1671 [1689</td></tr>
+<tr><td>O11090-26</td><td>GLG</td><td data-orden="2026-05-12 12:00">12-May-2026</td><td class="dias-alto">52</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>GLG- FLIGHT DIVERTED TO PTY DUE TO ECAM HY</td></tr>
+<tr><td>O10852-26</td><td>GLG</td><td data-orden="2026-05-03 17:36">03-May-2026</td><td class="dias-alto">61</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GLG- NO REVERSERS USE UPON LANDING AT GYE</td></tr>
+<tr><td>O11243-26</td><td>GLG</td><td data-orden="2026-05-01 10:10">01-May-2026</td><td class="dias-alto">63</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>GLG- FLEX INSERTION AT MEC GLG1691 [167078</td></tr>
+<tr><td>O9938-26</td><td>GLG</td><td data-orden="2026-04-26 19:40">26-Apr-2026</td><td class="dias-alto">68</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (21)</td><td>GLG- HIGH VERTICAL G IN WET CONDITIONS AT</td></tr>
+<tr><td>O7576-26</td><td>GLG</td><td data-orden="2026-03-28 08:40">28-Mar-2026</td><td class="dias-alto">97</td><td>In Progress</td><td>Full Investigation</td><td>Intolerable (502)</td><td>GLG- AIRCRAFT UPSET ANG EGPWS CAUTIONS AT</td></tr>
+<tr><td>O7240-26</td><td>GLG</td><td data-orden="2026-03-25 18:38">25-Mar-2026</td><td class="dias-alto">100</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>GLG- GPWS PULL UP AT UIO GLG8373 [1644072]</td></tr>
+<tr><td>O6240-26</td><td>GLG</td><td data-orden="2026-03-13 04:30">13-Mar-2026</td><td class="dias-alto">112</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (21)</td><td>GLG- SMOKE IN CABIN (PED) AT BOG GLG8395</td></tr>
+<tr><td>O4283-26</td><td>GLG</td><td data-orden="2026-02-22 12:00">22-Feb-2026</td><td class="dias-alto">131</td><td>In Progress</td><td>Full Investigation</td><td>Acceptable (10)</td><td>GLG- FALSE FIRE ALERT ENGINE 2 AT GYE GLG8</td></tr>
+<tr><td>O14370-26</td><td>GUG</td><td data-orden="2026-06-25 23:20">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- LOSS OF GLIDE SLOPE AT MGGT GUG703 [1</td></tr>
+<tr><td>O13998-26</td><td>GUG</td><td data-orden="2026-06-20 20:10">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- SINK RATE DURING APP AT GUA GUG701 [N</td></tr>
+<tr><td>O13810-26</td><td>GUG</td><td data-orden="2026-06-16 17:00">16-Jun-2026</td><td>17</td><td>Open</td><td></td><td>Acceptable (2)</td><td>GUG- HOLDING PATTERN AND LANDING AT GUA GU</td></tr>
+<tr><td>O13421-26</td><td>GUG</td><td data-orden="2026-06-12 06:34">12-Jun-2026</td><td>21</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- LONG FLARE DURING LANDING AT FRS GUG7</td></tr>
+<tr><td>O13377-26</td><td>GUG</td><td data-orden="2026-06-06 20:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (4)</td><td>GUG- GO AROUND AT GUA GUG701 [NO FDA DATA]</td></tr>
+<tr><td>O10843-26</td><td>GUG</td><td data-orden="2026-04-28 06:37">28-Apr-2026</td><td class="dias-alto">66</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GUG- NO REVERSERS USE UPON LANDING AT FRS</td></tr>
+<tr><td>O15020-26</td><td>LRC</td><td data-orden="2026-07-02 12:45">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td>Acceptable (2)</td><td>LRC - GO AROUND AT SJO [PENDING SARA DATA]</td></tr>
+<tr><td>O14827-26</td><td>LRC</td><td data-orden="2026-06-28 20:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (2)</td><td>LRC- GO AROUND AT UIO [1710476]</td></tr>
+<tr><td>O14112-26</td><td>LRC</td><td data-orden="2026-06-21 16:41">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>LRC- SUSPECTED LIGTHTNING STRIKE DURNG ASC</td></tr>
+<tr><td>O14910-26</td><td>Otros</td><td data-orden="2026-07-01 10:00">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>ENG FAIL L</td></tr>
+<tr><td>O14583-26</td><td>Otros</td><td data-orden="2026-06-25 13:53">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>Vectoreo por debajo de las altitudes mínim</td></tr>
+<tr><td>O14274-26</td><td>Otros</td><td data-orden="2026-06-24 14:45">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>Momentáneo ingreso a rango de VLS, debido</td></tr>
+<tr><td>O14839-26</td><td>Otros</td><td data-orden="2026-06-24 08:30">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>Go Around</td></tr>
+<tr><td>O14311-26</td><td>Otros</td><td data-orden="2026-06-23 22:10">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>Respuesta inadecuada del avión durante el</td></tr>
+<tr><td>O14445-26</td><td>Otros</td><td data-orden="2026-06-23 11:04">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>FDA O14398-26, AVA142</td></tr>
+<tr><td>O14065-26</td><td>Otros</td><td data-orden="2026-06-20 21:20">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td></td><td>RC- operador del Paymover STT 49 SAI no re</td></tr>
+<tr><td>O13310-26</td><td>Otros</td><td data-orden="2026-06-11 19:30">11-Jun-2026</td><td>22</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AT-COL-TCP 12277</td></tr>
+<tr><td>O7533-26</td><td>Otros</td><td data-orden="2026-03-27 12:00">27-Mar-2026</td><td class="dias-alto">98</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVAOMA- ATB DUE TO LANDING GEAR FAILED TO</td></tr>
+<tr><td>O15037-26</td><td>TAI</td><td data-orden="2026-07-03 11:00">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TAI - LOW APPROACH CROSSING THRESHOLD</td></tr>
+<tr><td>O15002-26</td><td>TAI</td><td data-orden="2026-07-01 14:01">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TAI - SPEED RESTRICTION EXCEEDANCE</td></tr>
+<tr><td>O14937-26</td><td>TAI</td><td data-orden="2026-07-01 09:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TAI - HIGH ALTITUDE MISSED APPROACH</td></tr>
+<tr><td>O14895-26</td><td>TAI</td><td data-orden="2026-07-01 04:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT JFK TAI568 [1709818]</td></tr>
+<tr><td>O14894-26</td><td>TAI</td><td data-orden="2026-07-01 03:45">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT UIO/ DEVERTION TO GYE TA</td></tr>
+<tr><td>O14821-26</td><td>TAI</td><td data-orden="2026-06-29 23:50">29-Jun-2026</td><td>4</td><td>Open</td><td></td><td></td><td>TAI- OVERSPEED IN APP AT MEX</td></tr>
+<tr><td>O14669-26</td><td>TAI</td><td data-orden="2026-06-28 02:43">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- MODERATE TURBULENCE DURING APPROACH A</td></tr>
+<tr><td>O14591-26</td><td>TAI</td><td data-orden="2026-06-27 14:02">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GS OSCILLATION DURING APPROACH AT GUA</td></tr>
+<tr><td>O14559-26</td><td>TAI</td><td data-orden="2026-06-27 10:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TAI- DUAL INPUT INDICATION AT SJO TAI318 [</td></tr>
+<tr><td>O14528-26</td><td>TAI</td><td data-orden="2026-06-27 03:25">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- WRONG FLT PROCEDURE AT LIM TAI429 [17</td></tr>
+<tr><td>O14505-26</td><td>TAI</td><td data-orden="2026-06-26 19:26">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Tolerable (20)</td><td>TAI- LOW TAIL CLEARANCE DURING TAKE OFF AT</td></tr>
+<tr><td>O14483-26</td><td>TAI</td><td data-orden="2026-06-26 10:43">26-Jun-2026</td><td>7</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TAI- PARAMETERS AT MMMX TAI430 [1707370]</td></tr>
+<tr><td>O14514-26</td><td>TAI</td><td data-orden="2026-06-25 18:11">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>TAI- GPWS GLIDESLOPE AT GUA TAI588 [170735</td></tr>
+<tr><td>O14263-26</td><td>TAI</td><td data-orden="2026-06-24 08:30">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT GUA TAI554 [1704993]</td></tr>
+<tr><td>O14152-26</td><td>TAI</td><td data-orden="2026-06-21 13:30">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- FLAPS CONFIGURATION DURING APP AT MIA</td></tr>
+<tr><td>O14444-26</td><td>TAI</td><td data-orden="2026-06-20 23:15">20-Jun-2026</td><td>13</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT GUA TAI578 [1701412]</td></tr>
+<tr><td>O14015-26</td><td>TAI</td><td data-orden="2026-06-20 00:30">20-Jun-2026</td><td>13</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (10)</td><td>TAI - LANDING PERFORMANCE REEVALUATION AT</td></tr>
+<tr><td>O14348-26</td><td>TAI</td><td data-orden="2026-06-19 18:39">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT SJO TAI313 [1702019]</td></tr>
+<tr><td>O13953-26</td><td>TAI</td><td data-orden="2026-06-17 07:10">17-Jun-2026</td><td>16</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TAI- UNSTABILIZED APPROACH AT SAL DUE TO G</td></tr>
+<tr><td>O13719-26</td><td>TAI</td><td data-orden="2026-06-17 04:45">17-Jun-2026</td><td>16</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TAI- BANKING EXCEDENCE AT JFK TAI568 [1700</td></tr>
+<tr><td>O13666-26</td><td>TAI</td><td data-orden="2026-06-14 02:30">14-Jun-2026</td><td>19</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TAI- UNSTABILIZED APPROACH DUE TO LATE GRO</td></tr>
+<tr><td>O12589-26</td><td>TAI</td><td data-orden="2026-05-29 13:28">29-May-2026</td><td class="dias-alto">35</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- VFE EXCEEDANCE AT IAD TAI582 [1689199</td></tr>
+<tr><td>O12437-26</td><td>TAI</td><td data-orden="2026-05-26 10:36">26-May-2026</td><td class="dias-alto">38</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TAI- UNSTABILIZED APPROACH LATE SETTING LA</td></tr>
+<tr><td>O11804-26</td><td>TAI</td><td data-orden="2026-05-23 11:20">23-May-2026</td><td class="dias-alto">41</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>TAI- TCAS RA ADJUST VERTICAL SPEED AT SJO</td></tr>
+<tr><td>O11437-26</td><td>TAI</td><td data-orden="2026-05-14 14:38">14-May-2026</td><td class="dias-alto">50</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TAI- GO AROUND AT BOG AV385 [1680187]</td></tr>
+<tr><td>O10917-26</td><td>TAI</td><td data-orden="2026-05-11 08:15">11-May-2026</td><td class="dias-alto">53</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>TAI- GO AROUND AT MGA TAI396 [1677310]</td></tr>
+<tr><td>O10386-26</td><td>TAI</td><td data-orden="2026-05-04 05:00">04-May-2026</td><td class="dias-alto">60</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TAI- LATE REVERSE DEPLOYMENT AT SAL TAI 57</td></tr>
+<tr><td>O10170-26</td><td>TAI</td><td data-orden="2026-05-01 01:40">01-May-2026</td><td class="dias-alto">63</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- ABNORMAL BRAKE TEMPERATURE RISE AND T</td></tr>
+<tr><td>O9971-26</td><td>TAI</td><td data-orden="2026-04-28 14:50">28-Apr-2026</td><td class="dias-alto">66</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- INCORRECT GO AROUND AT YYZ TAI324 [16</td></tr>
+<tr><td>O9252-26</td><td>TAI</td><td data-orden="2026-04-19 08:49">19-Apr-2026</td><td class="dias-alto">75</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- TIRE DEFLATED [#3 AND#4] AFTER LANDIN</td></tr>
+<tr><td>O8226-26</td><td>TAI</td><td data-orden="2026-04-03 19:30">03-Apr-2026</td><td class="dias-alto">91</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TAI- GPWS ACTIVATION TOO LOW FLAPS AT XPL</td></tr>
+<tr><td>O14884-26</td><td>TNO</td><td data-orden="2026-06-30 12:00">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TNO- GO AROUND AT SAP</td></tr>
+<tr><td>O14569-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- DIVERSION TO SAP ALTERNATE AIRPORT</td></tr>
+<tr><td>O14570-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- N1 MOMENTARILY EXCEEDANCE ABOVE 40% A</td></tr>
+<tr><td>O14865-26</td><td>TNO</td><td data-orden="2026-06-27 12:00">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TNO- POSSIBLE HIGHT SPEED AT SAP</td></tr>
+<tr><td>O14431-26</td><td>TNO</td><td data-orden="2026-06-24 12:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TNO- LATE REVERSES AT BOG</td></tr>
+<tr><td>O14432-26</td><td>TNO</td><td data-orden="2026-06-24 12:00">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TNO- MAXIMUM FLAP EXTENDED SPEED AT UIO</td></tr>
+<tr><td>O14446-26</td><td>TNO</td><td data-orden="2026-06-23 12:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>TNO- SPEED BELOW VAPP ON APPROACH</td></tr>
+<tr><td>O14046-26</td><td>TNO</td><td data-orden="2026-06-21 12:00">21-Jun-2026</td><td>12</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- N1 MOMENTARILY ACCELERATING ABOVE 40%</td></tr>
+<tr><td>O14050-26</td><td>TNO</td><td data-orden="2026-06-19 12:00">19-Jun-2026</td><td>14</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO - GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O13505-26</td><td>TNO</td><td data-orden="2026-06-13 12:00">13-Jun-2026</td><td>20</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O13039-26</td><td>TNO</td><td data-orden="2026-06-07 12:00">07-Jun-2026</td><td>26</td><td>Open</td><td></td><td>Acceptable (10)</td><td>TNO- POSSIBLE OVERSHOOT APP AT GUA [169342</td></tr>
+<tr><td>O12952-26</td><td>TNO</td><td data-orden="2026-06-06 12:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT GDL [PENDIENTE DATA]</td></tr>
+<tr><td>O13085-26</td><td>TNO</td><td data-orden="2026-06-06 12:00">06-Jun-2026</td><td>27</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- GO AROUND AT LAX [PENDIENTE DATA]</td></tr>
+<tr><td>O12853-26</td><td>TNO</td><td data-orden="2026-06-04 12:00">04-Jun-2026</td><td>29</td><td>Open</td><td></td><td>Acceptable (10)</td><td>TNO- ATC COMINICATION EVENT DURING TAKE OF</td></tr>
+<tr><td>O12850-26</td><td>TNO</td><td data-orden="2026-06-03 12:00">03-Jun-2026</td><td>30</td><td>Open</td><td></td><td>Acceptable (1)</td><td>TNO- LANDING GEAR NOT DOWNLOCKED AT MTY</td></tr>
+<tr><td>O12348-26</td><td>TNO</td><td data-orden="2026-05-30 12:00">30-May-2026</td><td class="dias-alto">34</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (2)</td><td>TNO- SINGLE TAXI AT SJO [1689900]</td></tr>
+<tr><td>O11530-26</td><td>TNO</td><td data-orden="2026-05-18 12:00">18-May-2026</td><td class="dias-alto">46</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TNO- REJECTED TAKEOFF [1680312]</td></tr>
+<tr><td>O11162-26</td><td>TNO</td><td data-orden="2026-05-13 12:00">13-May-2026</td><td class="dias-alto">51</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- LATE REVERSES AT BOG [PENDIENTE DATA]</td></tr>
+<tr><td>O10669-26</td><td>TNO</td><td data-orden="2026-05-07 12:00">07-May-2026</td><td class="dias-alto">57</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>TNO-TCAS RA AT LAX</td></tr>
+<tr><td>O12204-26</td><td>TNO</td><td data-orden="2026-05-06 12:00">06-May-2026</td><td class="dias-alto">58</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TNO- UNSTABILIZED APPROACH AT GUA [1675039</td></tr>
+<tr><td>O10275-26</td><td>TNO</td><td data-orden="2026-04-30 12:00">30-Apr-2026</td><td class="dias-alto">64</td><td>Open</td><td></td><td>Acceptable (2)</td><td>TNO- DELAY DUE TO MAINTENANCE AND LATE CRE</td></tr>
+<tr><td>O10432-26</td><td>TNO</td><td data-orden="2026-04-30 12:00">30-Apr-2026</td><td class="dias-alto">64</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (4)</td><td>TNO- N1 MOMENTARILY ACCELERATING ABOVE 40%</td></tr>
+<tr><td>O12111-26</td><td>TNO</td><td data-orden="2026-04-29 12:00">29-Apr-2026</td><td class="dias-alto">65</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>TNO- LONG LANDING AT NLU [1671819]</td></tr>
+<tr><td>O10854-26</td><td>TNO</td><td data-orden="2026-04-21 12:00">21-Apr-2026</td><td class="dias-alto">73</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (10)</td><td>TNO- TCAS TA DURING APPROACH AT LAX [NO DA</td></tr>
+<tr><td>O9614-26</td><td>TNO</td><td data-orden="2026-04-21 11:46">21-Apr-2026</td><td class="dias-alto">73</td><td>Open</td><td></td><td>Acceptable (4)</td><td>TNO- DIFFERENCE IN TAKEOFF PERFORMANCE CAL</td></tr>
+<tr><td>O8934-26</td><td>TNO</td><td data-orden="2026-04-14 12:00">14-Apr-2026</td><td class="dias-alto">80</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (50)</td><td>TNO- TAWS CAUTION TERRAIN AHEAD ALARM AT S</td></tr>
+<tr><td>O5830-26</td><td>TNO</td><td data-orden="2026-03-08 12:00">08-Mar-2026</td><td class="dias-alto">117</td><td>In Progress</td><td>Full Investigation</td><td>Tolerable (50)</td><td>TNO- GO AROUND DUE TO GPWS TERRAIN AT SAP</td></tr>
+<tr><td>O15023-26</td><td>TPA</td><td data-orden="2026-07-03 00:12">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TPA - FLAP RETRACTION DURING APPROACH</td></tr>
+<tr><td>O15022-26</td><td>TPA</td><td data-orden="2026-07-03 00:10">03-Jul-2026</td><td>0</td><td>Open</td><td></td><td></td><td>TPA - FLAP LOAD RELIEF ACTIVATION</td></tr>
+<tr><td>O14980-26</td><td>TPA</td><td data-orden="2026-07-02 00:20">02-Jul-2026</td><td>1</td><td>Open</td><td></td><td></td><td>TPA - BRAKE OVERHEAT WARNING</td></tr>
+<tr><td>O14975-26</td><td>TPA</td><td data-orden="2026-07-01 21:50">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - FLAPS CONFIGURATION WARNING</td></tr>
+<tr><td>O14955-26</td><td>TPA</td><td data-orden="2026-07-01 15:47">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - GO AROUND DUE TO OVERSPEED</td></tr>
+<tr><td>O14940-26</td><td>TPA</td><td data-orden="2026-07-01 10:30">01-Jul-2026</td><td>2</td><td>Open</td><td></td><td></td><td>TPA - UNSTABILIZED APPROACH GO AROUND</td></tr>
+<tr><td>O14807-26</td><td>TPA</td><td data-orden="2026-06-30 10:30">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA - NEAR GROUND GO AROUND</td></tr>
+<tr><td>O14850-26</td><td>TPA</td><td data-orden="2026-06-30 10:20">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA - GO AROUND DUE TO SPEED INCREASE</td></tr>
+<tr><td>O14822-26</td><td>TPA</td><td data-orden="2026-06-30 03:23">30-Jun-2026</td><td>3</td><td>Open</td><td></td><td></td><td>TPA- ACCIDENTAL DISCONNECTED AP</td></tr>
+<tr><td>O15048-26</td><td>TPA</td><td data-orden="2026-06-28 16:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>TPA - WINDSHEAR GO AROUND</td></tr>
+<tr><td>O14727-26</td><td>TPA</td><td data-orden="2026-06-28 11:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (1)</td><td>TPA- GO AROUND AND DIVERTED TO BAQ</td></tr>
+<tr><td>O14651-26</td><td>TPA</td><td data-orden="2026-06-28 07:00">28-Jun-2026</td><td>5</td><td>Open</td><td></td><td></td><td>TPA- BALLOONS IN APP ILS</td></tr>
+<tr><td>O14592-26</td><td>TPA</td><td data-orden="2026-06-27 15:40">27-Jun-2026</td><td>6</td><td>Open</td><td></td><td></td><td>TPA- GO AROUND UIO</td></tr>
+<tr><td>O14364-26</td><td>TPA</td><td data-orden="2026-06-25 03:15">25-Jun-2026</td><td>8</td><td>Open</td><td></td><td></td><td>TPA- FLAP LOAD RELIEF ACTIVATION IN APP AT</td></tr>
+<tr><td>O14448-26</td><td>TPA</td><td data-orden="2026-06-24 20:02">24-Jun-2026</td><td>9</td><td>Open</td><td></td><td></td><td>TPA- POSSIBLE UNSTABILIZED APP</td></tr>
+<tr><td>O14464-26</td><td>TPA</td><td data-orden="2026-06-23 17:00">23-Jun-2026</td><td>10</td><td>Open</td><td></td><td></td><td>TPA- UNSTABILIZED APP</td></tr>
+<tr><td>O13871-26</td><td>TPA</td><td data-orden="2026-06-18 18:30">18-Jun-2026</td><td>15</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TPA- LG NOT DOWN ON ECAM DURING APPROACH [</td></tr>
+<tr><td>O14087-26</td><td>TPA</td><td data-orden="2026-06-17 16:53">17-Jun-2026</td><td>16</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14173-26</td><td>TPA</td><td data-orden="2026-06-16 21:59">16-Jun-2026</td><td>17</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O14172-26</td><td>TPA</td><td data-orden="2026-06-15 08:24">15-Jun-2026</td><td>18</td><td>Open</td><td></td><td></td><td>TPA- LATE GEAR RETRACT CLIMB AFER TAKE OFF</td></tr>
+<tr><td>O13299-26</td><td>TPA</td><td data-orden="2026-06-10 13:55">10-Jun-2026</td><td>23</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TPA- FLAP SELECTION OVER FL200 [1696439]</td></tr>
+<tr><td>O12308-26</td><td>TPA</td><td data-orden="2026-05-30 05:40">30-May-2026</td><td class="dias-alto">34</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>TPA- GO AROUND AT MDE [1692718]</td></tr>
+<tr><td>O11830-26</td><td>TPA</td><td data-orden="2026-05-23 22:55">23-May-2026</td><td class="dias-alto">41</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>TPA- FLAP LOAD RELIEF [1688238]</td></tr>
+<tr><td>O11868-26</td><td>TPA</td><td data-orden="2026-05-15 10:36">15-May-2026</td><td class="dias-alto">49</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (2)</td><td>TPA- GO AROUND AT GUA [1680161]</td></tr>
+<tr><td>O11167-26</td><td>TPA</td><td data-orden="2026-05-14 18:00">14-May-2026</td><td class="dias-alto">50</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>TPA- GO AROUND AT GUA [1680161]</td></tr>
+<tr><td>O9162-26</td><td>TPA</td><td data-orden="2026-04-18 02:30">18-Apr-2026</td><td class="dias-alto">76</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>TPA- PRESSURIZATION LEAK</td></tr></tbody>
+        </table>
+      </div>
+    </details>
+</main>
+<footer>Reporte generado automáticamente · Safety / AQD Dashboard · avianca</footer>
+
+<script>
+const D = {"conteos": {"OPEN sin investigación": 181, "En Bitácora sin Task": 268, "Task sin investigación": 0, "Task completa / Bitácora OPEN": 0, "Tasks vencidas": 4, "OPEN con Task": 6}, "estados": {"OPEN": 197, "IN PROGRESS": 80}, "progreso": {"No iniciada": 7, "En curso": 2}, "por_mes": {"2026-01": 3, "2026-02": 6, "2026-03": 11, "2026-04": 15, "2026-05": 29, "2026-06": 185, "2026-07": 28}, "cobertura": {"Con Task": 6, "Sin Task": 191}, "coa": {"labels": ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "TNO", "GUG", "Otros"], "open": [100, 19, 20, 3, 4, 19, 20, 5, 7], "prog": [32, 11, 11, 0, 9, 7, 7, 1, 2], "con_inv": [40, 13, 13, 0, 11, 7, 9, 1, 2], "sin_inv": [92, 17, 18, 3, 2, 19, 18, 5, 7]}, "riesgos": {"Intolerable": 1, "Tolerable": 59, "Acceptable": 93, "Sin riesgo asignado": 124}, "colores": {"rojo": "#D6001C", "rojo_oscuro": "#A50113", "negro": "#1A1A1A", "gris": "#58595B", "gris_claro": "#F4F4F4", "blanco": "#FFFFFF", "dorado": "#C8A96A"}};
+const C = D.colores;
+const paleta = [C.rojo, C.negro, C.gris, C.dorado, C.rojo_oscuro, "#9b9b9b"];
+Chart.defaults.font.family = '"Segoe UI", Helvetica, Arial, sans-serif';
+Chart.defaults.color = C.negro;
+
+new Chart(document.getElementById("gCoa"), {
+  type: "bar",
+  data: { labels: D.coa.labels,
+    datasets: [
+      { label: "OPEN", data: D.coa.open, backgroundColor: C.rojo, borderRadius: 4 },
+      { label: "In Progress", data: D.coa.prog, backgroundColor: C.negro, borderRadius: 4 }
+    ] },
+  options: { plugins: { legend: { position: "bottom" } },
+    scales: { x: { stacked: true },
+               y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } } }
+});
+
+new Chart(document.getElementById("gCoaInv"), {
+  type: "bar",
+  data: { labels: D.coa.labels,
+    datasets: [
+      { label: "Con investigación", data: D.coa.con_inv, backgroundColor: C.gris, borderRadius: 4 },
+      { label: "Sin investigación", data: D.coa.sin_inv, backgroundColor: C.rojo, borderRadius: 4 }
+    ] },
+  options: { indexAxis: "y", plugins: { legend: { position: "bottom" } },
+    scales: { x: { stacked: true, beginAtZero: true, ticks: { precision: 0 } },
+               y: { stacked: true } } }
+});
+
+const colorRiesgo = { "Intolerable": C.rojo_oscuro, "Unacceptable": C.rojo,
+  "Tolerable": C.dorado, "Acceptable": "#5a8f5a",
+  "Sin riesgo asignado": "#c9c9c9" };
+new Chart(document.getElementById("gRiesgo"), {
+  type: "doughnut",
+  data: { labels: Object.keys(D.riesgos),
+    datasets: [{ data: Object.values(D.riesgos),
+      backgroundColor: Object.keys(D.riesgos).map(k => colorRiesgo[k] || C.gris),
+      borderWidth: 2 }] },
+  options: { cutout: "62%", plugins: { legend: { position: "bottom" } } }
+});
+
+new Chart(document.getElementById("gBarras"), {
+  type: "bar",
+  data: { labels: Object.keys(D.conteos),
+    datasets: [{ data: Object.values(D.conteos),
+      backgroundColor: [C.rojo, C.negro, C.gris, C.dorado, C.rojo_oscuro, "#9b9b9b"],
+      borderRadius: 6 }] },
+  options: { plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+});
+
+new Chart(document.getElementById("gCobertura"), {
+  type: "doughnut",
+  data: { labels: Object.keys(D.cobertura),
+    datasets: [{ data: Object.values(D.cobertura),
+      backgroundColor: [C.negro, C.rojo], borderWidth: 2 }] },
+  options: { cutout: "62%", plugins: { legend: { position: "bottom" } } }
+});
+
+new Chart(document.getElementById("gProgreso"), {
+  type: "doughnut",
+  data: { labels: Object.keys(D.progreso),
+    datasets: [{ data: Object.values(D.progreso),
+      backgroundColor: paleta, borderWidth: 2 }] },
+  options: { cutout: "62%", plugins: { legend: { position: "bottom" } } }
+});
+
+new Chart(document.getElementById("gMes"), {
+  type: "bar",
+  data: { labels: Object.keys(D.por_mes),
+    datasets: [{ label: "Ocurrencias", data: Object.values(D.por_mes),
+      backgroundColor: C.rojo, borderRadius: 6 }] },
+  options: { plugins: { legend: { display: false } },
+    scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+});
+
+// ---------------------------------------------------------------------------
+// Tablas interactivas: orden por columna, filtro por columna y chips de COA
+// ---------------------------------------------------------------------------
+const normalizar = s => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+document.querySelectorAll("details.seccion").forEach(sec => {
+  const table = sec.querySelector("table");
+  if (!table || !table.tHead || !table.tBodies[0]) return;
+  const filas = [...table.tBodies[0].rows].filter(r => !r.querySelector("td.vacio"));
+  if (!filas.length) return;
+  const ths = [...table.tHead.rows[0].cells];
+
+  // --- barra de chips de COA + contador de registros ---
+  const barra = document.createElement("div");
+  barra.className = "chips";
+  const contador = document.createElement("span");
+  contador.className = "contador";
+  let coaActivo = "";
+  const iCoa = ths.findIndex(t => t.textContent.trim().replace(/[ ↕▲▼]+$/,"") === "COA");
+  if (iCoa >= 0) {
+    const etiq = document.createElement("span");
+    etiq.className = "etiq-chips"; etiq.textContent = "COA:";
+    barra.appendChild(etiq);
+    const valores = [...new Set(filas.map(r => r.cells[iCoa].textContent.trim() || "(sin COA)"))]
+                    .sort((a, b) => a.localeCompare(b, "es"));
+    ["Todos", ...valores].forEach(v => {
+      const b = document.createElement("button");
+      b.textContent = v;
+      if (v === "Todos") b.classList.add("activo");
+      b.addEventListener("click", () => {
+        coaActivo = v === "Todos" ? "" : v;
+        barra.querySelectorAll("button").forEach(x => x.classList.remove("activo"));
+        b.classList.add("activo");
+        aplicar();
+      });
+      barra.appendChild(b);
+    });
+  }
+  barra.appendChild(contador);
+  sec.querySelector(".tabla-wrap").before(barra);
+
+  // --- fila de filtros por columna ---
+  const trF = table.tHead.insertRow();
+  trF.className = "fila-filtros";
+  ths.forEach(() => {
+    const th = document.createElement("th");
+    const inp = document.createElement("input");
+    inp.type = "search";
+    inp.placeholder = "Filtrar…";
+    inp.addEventListener("input", () => aplicar());
+    th.appendChild(inp);
+    trF.appendChild(th);
+  });
+
+  function aplicar() {
+    const filtros = [...trF.cells].map(c => normalizar(c.firstChild.value || ""));
+    let visibles = 0;
+    filas.forEach(r => {
+      let ok = true;
+      if (coaActivo) {
+        const v = r.cells[iCoa].textContent.trim() || "(sin COA)";
+        if (v !== coaActivo) ok = false;
+      }
+      if (ok) filtros.forEach((f, i) => {
+        if (f && !normalizar(r.cells[i].textContent).includes(f)) ok = false;
+      });
+      r.style.display = ok ? "" : "none";
+      if (ok) visibles++;
+    });
+    contador.textContent = visibles === filas.length
+        ? filas.length + " registros"
+        : visibles + " de " + filas.length + " registros";
+  }
+  aplicar();
+
+  // --- orden al hacer clic en el encabezado ---
+  ths.forEach((th, i) => {
+    th.classList.add("ordenable");
+    th.addEventListener("click", () => {
+      const asc = !th.classList.contains("asc");
+      ths.forEach(t => t.classList.remove("asc", "desc"));
+      th.classList.add(asc ? "asc" : "desc");
+      const clave = r => {
+        const td = r.cells[i];
+        return (td.dataset.orden !== undefined ? td.dataset.orden
+                                               : td.textContent.trim());
+      };
+      filas.sort((a, b) => {
+        const va = clave(a), vb = clave(b);
+        if (va === "" && vb !== "") return 1;    // vacíos siempre al final
+        if (vb === "" && va !== "") return -1;
+        const na = parseFloat(va.replace(",", ".")),
+              nb = parseFloat(vb.replace(",", "."));
+        let c;
+        if (!isNaN(na) && !isNaN(nb) && /^[-\d.,%]/.test(va) && /^[-\d.,%]/.test(vb))
+          c = na - nb;
+        else
+          c = normalizar(va).localeCompare(normalizar(vb), "es");
+        return asc ? c : -c;
+      });
+      filas.forEach(r => table.tBodies[0].appendChild(r));
+    });
+  });
+});
+</script>
+</body>
+</html>
