@@ -1,0 +1,56 @@
+# Actualiza el dashboard AQD 3 veces al día (hora Colombia = UTC-5) y lo
+# publica en GitHub Pages (repo luibernip/segops). También se puede lanzar
+# a mano desde la pestaña Actions ("Run workflow").
+name: Actualizar dashboard
+
+on:
+  schedule:
+    - cron: "30 12 * * *"   # 07:30 Colombia
+    - cron: "30 17 * * *"   # 12:30 Colombia
+    - cron: "0 22 * * *"    # 17:00 Colombia
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  actualizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: |
+          pip install --quiet pandas playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Extraer Bitácora (FLT, CBN, FRM)
+        env:
+          AQD_USUARIO: ${{ secrets.AQD_USUARIO }}
+          AQD_CLAVE: ${{ secrets.AQD_CLAVE }}
+        run: python extraer_cloud.py
+
+      - name: Extraer Planner (sesión virtual de Microsoft)
+        env:
+          MS_SESION: ${{ secrets.MS_SESION }}
+        run: python extraer_planner_cloud.py
+
+      - name: Generar reporte HTML
+        run: |
+          python preparar_datos.py
+          python comparar_bitacora_planner.py
+
+      - name: Publicar (el reporte y los datos frescos van a este mismo repo)
+        run: |
+          cp reporte_bitacora_vs_tasks.html index.html
+          git config user.name "AQD Bot"
+          git config user.email "aqd-bot@users.noreply.github.com"
+          git pull --rebase origin main || true
+          git add index.html bitacora_*.csv planner_raw.txt
+          git commit -m "Actualización $(TZ=America/Bogota date '+%Y-%m-%d %H:%M') COT" || echo "sin cambios"
+          git push
