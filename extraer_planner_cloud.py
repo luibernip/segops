@@ -30,7 +30,11 @@ URL_PLANNER = ("https://planner.cloud.microsoft/webui/plan/"
 # Devuelve {ok, tareas, total} si encontró el arreglo, o null si no.
 JS_LEER_PLANNER = r"""
 () => {
-  let arr = null;
+  // Preferir 'allTasks' (conjunto COMPLETO del plan) sobre 'rows' (solo las
+  // visibles). Se recorren todos los fibers buscando allTasks primero.
+  const util = a => a && a.length && a[0] &&
+                    typeof a[0].displayName === 'string';
+  let all = null, rowsArr = null;
   for (const el of document.querySelectorAll(
          '[role="row"],[role="grid"],[role="treegrid"],div')) {
     const key = Object.keys(el).find(k => k.startsWith('__reactFiber$'));
@@ -38,16 +42,16 @@ JS_LEER_PLANNER = r"""
     let fib = el[key], hops = 0;
     while (fib && hops < 40) {
       const p = fib.memoizedProps;
-      if (p && (Array.isArray(p.allTasks) || Array.isArray(p.rows))) {
-        const a = Array.isArray(p.allTasks) ? p.allTasks : p.rows;
-        if (a.length && a[0] && typeof a[0].displayName === 'string') {
-          arr = a; break;
-        }
+      if (p) {
+        if (!all && Array.isArray(p.allTasks) && util(p.allTasks)) all = p.allTasks;
+        if (!rowsArr && Array.isArray(p.rows) && util(p.rows)) rowsArr = p.rows;
       }
+      if (all) break;
       fib = fib.return; hops++;
     }
-    if (arr) break;
+    if (all) break;
   }
+  const arr = all || rowsArr;
   if (!arr) return null;
   const f = d => {
     if (!d) return '';
