@@ -33,37 +33,42 @@ DOMINIOS_COOKIES = ("microsoftonline", "cloud.microsoft", "msauth",
 DOMINIOS_ORIGENES = ("cloud.microsoft",)
 
 # Detección robusta: recorre los fibers de React buscando el arreglo de
-# tareas (rowData con IDs O####-##). Sirve aunque cambien las clases del DOM.
+# tareas del plan ('allTasks'/'rows'; antes 'rowData'). Devuelve {ok, total,
+# tareas} si lo encuentra (sesión válida) aunque ninguna tarea tenga O####-##.
 JS_LEER_TAREAS = r"""
 () => {
-  const cand = document.querySelectorAll(
-    '[role="row"], [role="grid"], [role="treegrid"], [class*="row" i], [class*="grid" i], div');
-  const vistos = new Set();
-  for (const el of cand) {
+  let arr = null;
+  for (const el of document.querySelectorAll(
+         '[role="row"],[role="grid"],[role="treegrid"],div')) {
     const key = Object.keys(el).find(k => k.startsWith('__reactFiber$'));
     if (!key) continue;
     let fib = el[key], hops = 0;
     while (fib && hops < 40) {
       const p = fib.memoizedProps;
-      if (p && Array.isArray(p.rowData) &&
-          p.rowData.some(t => /O\d{1,5}-\d{2}/.test((t && t.displayName) || ''))) {
-        const f = d => {
-          if (!d) return '';
-          const m = JSON.stringify(d).match(/\d{4}-\d{2}-\d{2}/);
-          return m ? m[0].slice(2) : '';
-        };
-        return p.rowData
-          .filter(t => /O\d{1,5}-\d{2}/.test((t && t.displayName) || ''))
-          .map(t => t.displayName.match(/O\d{1,5}-\d{2}/)[0] + '~' +
-               f(t.dueDateTime) + '~' +
-               (t.percentComplete === 100 ? 'C' :
-                t.percentComplete > 0 ? 'E' : 'N') +
-               '~' + f(t.completedDateTime));
+      if (p && (Array.isArray(p.allTasks) || Array.isArray(p.rows))) {
+        const a = Array.isArray(p.allTasks) ? p.allTasks : p.rows;
+        if (a.length && a[0] && typeof a[0].displayName === 'string') {
+          arr = a; break;
+        }
       }
       fib = fib.return; hops++;
     }
+    if (arr) break;
   }
-  return null;
+  if (!arr) return null;
+  const f = d => {
+    if (!d) return '';
+    const m = JSON.stringify(d).match(/\d{4}-\d{2}-\d{2}/);
+    return m ? m[0].slice(2) : '';
+  };
+  const tareas = arr
+    .filter(t => t && /O\d{1,5}-\d{2}/.test(t.displayName || ''))
+    .map(t => t.displayName.match(/O\d{1,5}-\d{2}/)[0] + '~' +
+         f(t.dueDateTime) + '~' +
+         (t.percentComplete === 100 ? 'C' :
+          t.percentComplete > 0 ? 'E' : 'N') +
+         '~' + f(t.finishDateTime));
+  return { ok: true, tareas, total: arr.length };
 }
 """
 
@@ -85,15 +90,16 @@ def main():
         log("Abriendo Planner… inicia sesión SI te lo pide EN ESTA ventana.")
         page.goto(URL_PLANNER, wait_until="domcontentloaded", timeout=120_000)
 
-        tareas = None
+        res = None
         inicio = time.time()
         aviso = False
         while time.time() - inicio < ESPERA_MAX_SEG:
             try:
-                tareas = page.evaluate(JS_LEER_TAREAS)
+                r = page.evaluate(JS_LEER_TAREAS)
             except Exception:
-                tareas = None
-            if tareas:
+                r = None
+            if r and r.get("ok"):
+                res = r
                 break
             if not aviso and time.time() - inicio > 6:
                 log(">>> Si ves una pantalla de Microsoft, INICIA SESIÓN en "
@@ -101,13 +107,13 @@ def main():
                 aviso = True
             time.sleep(3)
 
-        if not tareas:
+        if not res:
             ctx.close()
             sys.exit("No se pudieron leer las tareas de Planner (¿no se "
                      "completó el inicio de sesión?). Vuelve a intentar.")
 
-        log(f"Planner reconocido: {len(tareas)} tareas leídas. "
-            "Guardando la sesión…")
+        log(f"Planner reconocido: {res['total']} tareas en el plan, "
+            f"{len(res['tareas'])} con ID O####-##. Guardando la sesión…")
         estado = ctx.storage_state()
         ctx.close()
 
