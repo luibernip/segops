@@ -459,11 +459,11 @@ def generar_html(bit, pla, r, salida, extras=None):
     coa_labels = df_coa["COA"].tolist()
     coa_open = df_coa["OPEN"].tolist()
     coa_prog = df_coa["In Progress"].tolist()
-    # Tasks vs Bitácora por COA: cuántos eventos de Bitácora tienen tarea
-    # activa en Planner y cuántos no (r["bit_sin_task"])
-    sin_task_por_coa = r["bit_sin_task"]["COA"].value_counts()
+    # Tasks vs Bitácora por COA: SOLO ocurrencias In Progress (se omiten las
+    # OPEN); cuántas tienen tarea activa en Planner y cuántas no
+    sin_task_por_coa = r["prog_sin_task"]["COA"].value_counts()
     coa_sin_task = [int(sin_task_por_coa.get(c, 0)) for c in coa_labels]
-    coa_con_task = [int(t) - s for t, s in zip(df_coa["Total"], coa_sin_task)]
+    coa_con_task = [max(int(t) - s, 0) for t, s in zip(coa_prog, coa_sin_task)]
 
     # Riesgo promedio por COA: promedio del puntaje numérico del riesgo
     # (p. ej. "Tolerable (20)" -> 20) contando SOLO ocurrencias con riesgo
@@ -572,11 +572,21 @@ def generar_html(bit, pla, r, salida, extras=None):
       </div>
     </details>"""
 
-    listado = bit.sort_values(["COA", "Fecha"], ascending=[True, False])
+    # Fecha de vencimiento tomada de Planner: la más próxima entre las tareas
+    # activas del evento; si solo tiene tareas completadas, la de esas.
+    venc_activas = (pla[~pla["Completada"]].dropna(subset=["Evento"])
+                      .groupby("Evento")["Vencimiento"].min())
+    venc_todas = pla.dropna(subset=["Evento"]).groupby("Evento")["Vencimiento"].min()
+    venc = venc_activas.combine_first(venc_todas)
+
+    listado = bit.sort_values(["COA", "Fecha"], ascending=[True, False]).copy()
+    listado["Vencimiento (Planner)"] = listado["Evento"].map(venc)
+    cols_listado = cols_b[:-1] + ["Vencimiento (Planner)", cols_b[-1]]
     seccion_listado = seccion(
         "≡", "Listado completo de ocurrencias FLT con nivel de riesgo",
-        "Todas las ocurrencias activas (Open + In Progress) de todos los COA",
-        listado, cols_b)
+        "Todas las ocurrencias activas (Open + In Progress) de todos los COA · "
+        "la fecha de vencimiento proviene de Planner",
+        listado, cols_listado)
 
     # ------- Pestañas adicionales por tipo de ocurrencia (CBN, FRM, …) -------
     extras = extras or {}
@@ -789,7 +799,7 @@ def generar_html(bit, pla, r, salida, extras=None):
   <div class="graficos">
     <div class="grafico ancho"><h3>Ocurrencias por COA (OPEN / In Progress)</h3>
       <canvas id="gCoa"></canvas></div>
-    <div class="grafico"><h3>Tasks vs Bitácora por COA</h3>
+    <div class="grafico"><h3>Tasks vs Bitácora por COA (solo In Progress)</h3>
       <canvas id="gCoaInv"></canvas></div>
     <div class="grafico"><h3>Nivel de riesgo (todas las ocurrencias)</h3>
       <canvas id="gRiesgo"></canvas></div>
