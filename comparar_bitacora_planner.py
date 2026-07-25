@@ -339,8 +339,8 @@ def comparar(bit, pla):
     # 6. OPEN en Bitácora y con tarea activa
     r["open_con_task"] = bit[bit["Abierto"] & bit["Evento"].isin(eventos_task)]
 
-    # 6. Eventos activos sin nivel de riesgo asignado en Bitácora
-    r["sin_riesgo"] = bit[bit["Categoría riesgo"] == "Sin riesgo asignado"]
+    # 6. Eventos In Progress en Bitácora sin tarea activa en Tasks
+    r["prog_sin_task"] = bit[~bit["Abierto"] & ~bit["Evento"].isin(eventos_task)]
 
     return r
 
@@ -434,12 +434,11 @@ def generar_html(bit, pla, r, salida, extras=None):
 
     # Datos para los gráficos
     conteos = {
-        "OPEN sin investigación":        len(r["open_sin_inv"]),
         "En Bitácora sin Task":          len(r["bit_sin_task"]),
         "Task sin investigación":        len(r["task_sin_inv"]),
         "Task completa / sin cerrar Bitácora": len(r["task_comp_bit_open"]),
         "Tasks vencidas":                len(r["task_vencidas"]),
-        "OPEN con Task":                 len(r["open_con_task"]),
+        "In Progress sin Task":          len(r["prog_sin_task"]),
     }
     activas = pla[~pla["Completada"]]
     estados_bit = bit["Estado"].str.upper().value_counts().to_dict()
@@ -515,12 +514,11 @@ def generar_html(bit, pla, r, salida, extras=None):
         con_sub = int(sb["Evento"].isin(ev_task).sum())
         por_coa[coa] = {
             "conteos": {
-                "OPEN sin investigación":        len(rc["open_sin_inv"]),
                 "En Bitácora sin Task":          len(rc["bit_sin_task"]),
                 "Task sin investigación":        len(rc["task_sin_inv"]),
                 "Task completa / Bitácora OPEN": len(rc["task_comp_bit_open"]),
                 "Tasks vencidas":                len(rc["task_vencidas"]),
-                "OPEN con Task":                 len(rc["open_con_task"]),
+                "In Progress sin Task":          len(rc["prog_sin_task"]),
             },
             "cobertura": {"Con Task": con_sub,
                           "Sin Task": max(len(sb) - con_sub, 0)},
@@ -550,7 +548,7 @@ def generar_html(bit, pla, r, salida, extras=None):
       <div class="tarjeta"><div class="valor">{len(bit) - abiertos_tot}</div><div class="etq">In Progress en Bitácora</div></div>
       <div class="tarjeta"><div class="valor">{len(activas)}</div><div class="etq">Tareas activas en Planner<br>(se excluyen {int(pla["Completada"].sum())} completadas)</div></div>
       <div class="tarjeta rojo"><div class="valor">{len(r["task_vencidas"])}</div><div class="etq">Tasks vencidas</div></div>
-      <div class="tarjeta rojo"><div class="valor">{len(r["open_sin_inv"])}</div><div class="etq">OPEN sin investigación</div></div>
+      <div class="tarjeta rojo"><div class="valor">{len(r["prog_sin_task"])}</div><div class="etq">In Progress sin Task</div></div>
     """
 
     filas_coa = "".join(
@@ -633,25 +631,22 @@ def generar_html(bit, pla, r, salida, extras=None):
     datos_extras_js = json.dumps(datos_extras, ensure_ascii=False) if datos_extras else "null"
 
     secciones = "".join([
-        seccion(1, "Eventos OPEN en Bitácora sin tipo de investigación",
-                "Ocurrencias abiertas cuyo campo de investigación está vacío",
-                r["open_sin_inv"], cols_b, abierta=True),
-        seccion(2, "Eventos en Bitácora que no están en Tasks",
+        seccion(1, "Eventos en Bitácora que no están en Tasks",
                 "Ocurrencias sin tarea activa de seguimiento en Planner (las completadas no cuentan)",
-                r["bit_sin_task"], cols_b),
-        seccion(3, "Eventos en Tasks sin tipo de investigación en Bitácora",
+                r["bit_sin_task"], cols_b, abierta=True),
+        seccion(2, "Eventos en Tasks sin tipo de investigación en Bitácora",
                 "Tareas activas cuya ocurrencia no tiene investigación asignada",
                 r["task_sin_inv"], cols_t),
-        seccion(4, "Tasks completadas sin cerrar en Bitácora",
+        seccion(3, "Tasks completadas sin cerrar en Bitácora",
                 "La tarea se completó en Planner pero la ocurrencia sigue "
                 "activa (Open o In Progress) en Bitácora",
                 r["task_comp_bit_open"], cols_t),
-        seccion(5, "Tasks vencidas",
+        seccion(4, "Tasks vencidas",
                 "Tareas no completadas con fecha de vencimiento anterior a hoy",
                 r["task_vencidas"], cols_t),
-        seccion(6, "Eventos en Bitácora sin riesgo asignado",
-                "Ocurrencias activas (Open + In Progress) cuyo nivel de riesgo está vacío",
-                r["sin_riesgo"], cols_b),
+        seccion(5, "Eventos en Bitácora In Progress sin Task",
+                "Ocurrencias In Progress sin tarea activa de seguimiento en Planner",
+                r["prog_sin_task"], cols_b),
     ])
 
     html = f"""<!DOCTYPE html>
