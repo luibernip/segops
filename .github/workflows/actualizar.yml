@@ -67,24 +67,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TITULO="⚠️ La sesión de Planner expiró — hay que renovarla"
-          ABIERTO=$(gh issue list -R "$GITHUB_REPOSITORY" --state open \
-            --search "$TITULO in:title" --json number --jq '.[0].number // empty')
+          ABIERTO=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "$TITULO in:title" --json number --jq '.[0].number // empty')
+          CUERPO=$'La actualización automática no pudo entrar a Planner: la sesión de Microsoft expiró. Los datos de Planner quedan congelados en su última foto; Bitácora sigue actualizándose normal cada hora.\n\nPara renovar (2 minutos): en tu Mac, doble clic en "Actualizar Reporte.command" e inicia sesión en Microsoft cuando lo pida. Este aviso se cierra solo cuando la sesión quede activa.'
           if [ -f _planner_expirado.flag ]; then
             if [ -z "$ABIERTO" ]; then
-              gh issue create -R "$GITHUB_REPOSITORY" --title "$TITULO" --body \
-"La actualización automática no pudo entrar a Planner: la sesión de Microsoft expiró. \
-Los datos de **Planner** quedan congelados en su última foto; **Bitácora sigue actualizándose normal** cada hora.
-
-**Para renovar (2 minutos):** en tu Mac, doble clic en \"Actualizar Reporte.command\" e inicia sesión en Microsoft cuando lo pida. \
-Este aviso se cierra solo en la siguiente corrida una vez la sesión quede activa."
+              gh issue create -R "$GITHUB_REPOSITORY" --title "$TITULO" --body "$CUERPO"
               echo "Issue de aviso creado."
             else
               echo "Ya hay un aviso abierto (#$ABIERTO); no se duplica."
             fi
           else
             if [ -n "$ABIERTO" ]; then
-              gh issue close "$ABIERTO" -R "$GITHUB_REPOSITORY" \
-                --comment "Sesión de Planner renovada ✓ — cerrado automáticamente."
+              gh issue close "$ABIERTO" -R "$GITHUB_REPOSITORY" --comment "Sesión de Planner renovada, cerrado automáticamente."
               echo "Aviso #$ABIERTO cerrado."
             fi
           fi
