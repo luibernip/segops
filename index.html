@@ -128,7 +128,7 @@
 <header>
   <h1><span class="logo">avianca</span> · Bitácora AQD vs Planner Tasks</h1>
   <p>Bitácora: Occurrence type FLT · State: All Active · Year to date ·
-     COAs: AVA, GLG, TAI, LRC, AVR, TPA, TNO, GUG &nbsp;|&nbsp; Generado: 27-Jul-2026 19:03 (hora Colombia)</p>
+     COAs: AVA, GLG, TAI, LRC, AVR, TPA, TNO, GUG &nbsp;|&nbsp; Generado: 27-Jul-2026 21:10 (hora Colombia)</p>
 </header>
 <main>
   
@@ -875,8 +875,8 @@
           <div class="tarjeta"><div class="valor">430</div><div class="etq">Ocurrencias FRM activas<br>(Year to Date)</div></div>
           <div class="tarjeta"><div class="valor">386</div><div class="etq">OPEN</div></div>
           <div class="tarjeta"><div class="valor">44</div><div class="etq">In Progress</div></div>
-          <div class="tarjeta"><div class="valor">403</div><div class="etq">Con riesgo asignado</div></div>
-          <div class="tarjeta rojo"><div class="valor">27</div><div class="etq">Sin riesgo asignado</div></div></div>
+          <div class="tarjeta"><div class="valor">404</div><div class="etq">Con riesgo asignado</div></div>
+          <div class="tarjeta rojo"><div class="valor">26</div><div class="etq">Sin riesgo asignado</div></div></div>
           <div class="graficos">
             <div class="grafico"><h3>Ocurrencias con riesgo vs sin riesgo</h3>
               <canvas id="gRiesgoFRM"></canvas></div>
@@ -902,8 +902,8 @@
 <tr><td>O16526-26</td><td>AVA</td><td data-orden="2026-07-19 18:00">19-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>4</td><td>Open</td><td></td><td>Tolerable (20)</td><td>AVA - CAB EARLY IAD WITH LDP BOG-AUA-BOG</td></tr>
 <tr><td>O16285-26</td><td>AVA</td><td data-orden="2026-07-19 04:20">19-Jul-2026</td><td data-orden="2026-07-22 00:00">22-Jul-2026</td><td>5</td><td>Open</td><td></td><td>Tolerable (20)</td><td>AVA - CAB EARLY IAD WITH LDP BOG-AUA-BOG</td></tr>
 <tr><td>O16685-26</td><td>AVA</td><td data-orden="2026-07-18 20:00">18-Jul-2026</td><td data-orden="2026-07-24 00:00">24-Jul-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- POTENTIAL SITUATIONAL AWARENESS DECREASE DURING NIGHT OPERATIONS</td></tr>
-<tr><td>O16681-26</td><td>AVA</td><td data-orden="2026-07-18 19:00">18-Jul-2026</td><td data-orden="2026-07-24 00:00">24-Jul-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- POTENTIAL SITUATIONAL AWARENESS DEGRADATION DURING NIGHT OPERATIONS</td></tr>
-<tr><td>O16672-26</td><td>AVA</td><td data-orden="2026-07-18 16:05">18-Jul-2026</td><td data-orden="2026-07-24 00:00">24-Jul-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- POTENTIAL HUMAN PERFORMANCE DEGRADATION DUE TO EXTENDED DUTY</td></tr>
+<tr><td>O16681-26</td><td>AVA</td><td data-orden="2026-07-18 19:00">18-Jul-2026</td><td data-orden="2026-07-24 00:00">24-Jul-2026</td><td>3</td><td>Open</td><td></td><td></td><td>AVA- CAB LATE NIGHT TURNAROUND TO VVI</td></tr>
+<tr><td>O16672-26</td><td>AVA</td><td data-orden="2026-07-18 16:05">18-Jul-2026</td><td data-orden="2026-07-24 00:00">24-Jul-2026</td><td>3</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- CAB LONG DUTY PERIOD BOG-MCO-BOG ENDING ON WOCL</td></tr>
 <tr><td>O16284-26</td><td>AVA</td><td data-orden="2026-07-17 01:20">17-Jul-2026</td><td data-orden="2026-07-22 00:00">22-Jul-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- CAB SUPER EARLY UIO &#43, LDP AT LBP</td></tr>
 <tr><td>O16152-26</td><td>AVA</td><td data-orden="2026-07-15 14:40">15-Jul-2026</td><td data-orden="2026-07-17 00:00">17-Jul-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA - CAB A/C CHANGES BGA</td></tr>
 <tr><td>O16283-26</td><td>AVA</td><td data-orden="2026-07-14 03:50">14-Jul-2026</td><td data-orden="2026-07-22 00:00">22-Jul-2026</td><td>5</td><td>Open</td><td></td><td>Acceptable (10)</td><td>AVA- FLT DOMCOL &#43, MEX AV044 WOCL</td></tr>
@@ -1458,7 +1458,7 @@ const chMes = new Chart(document.getElementById("gMes"), {
 // ---------------------------------------------------------------------------
 // Pestaña CBN: gráficas y conmutador de pestañas
 // ---------------------------------------------------------------------------
-const DX = {"CBN": {"riesgo": {"Con riesgo": 17, "Sin riesgo asignado": 12}, "dias": {"labels": ["AVA", "GLG", "GUG", "Otros"], "valores": [7.6, 3.0, 0.0, 0.0]}}, "FRM": {"riesgo": {"Con riesgo": 403, "Sin riesgo asignado": 27}, "dias": {"labels": ["AVA", "GLG", "TAI", "AVR", "TPA", "Otros"], "valores": [91.8, 92.0, 105.1, 139.0, 101.8, 19.9]}}};
+const DX = {"CBN": {"riesgo": {"Con riesgo": 17, "Sin riesgo asignado": 12}, "dias": {"labels": ["AVA", "GLG", "GUG", "Otros"], "valores": [7.6, 3.0, 0.0, 0.0]}}, "FRM": {"riesgo": {"Con riesgo": 404, "Sin riesgo asignado": 26}, "dias": {"labels": ["AVA", "GLG", "TAI", "AVR", "TPA", "Otros"], "valores": [91.8, 92.0, 105.1, 139.0, 101.8, 19.9]}}};
 Object.entries(DX || {}).forEach(([cod, d]) => {
   const cR = document.getElementById("gRiesgo" + cod);
   const cD = document.getElementById("gDias" + cod);
