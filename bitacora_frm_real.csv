@@ -1,5 +1,6 @@
 id;fecha;registrada;estado;investigacion;riesgo;titulo;matricula
 O17219-26;28/07/2026 12:00;28/07/2026;O;;;Reporte de riesgo por agotamiento acumulado y alteración del ritmo circadiano debido a la rotación del vuelo 08 BOG-MIA 09 MIA-BOG;
+O17297-26;27/07/2026 23:59;29/07/2026;O;;;Fatiga y cansancio por cambio de asignación del día previo al vuelo 236 CLO-FLL;N345AV
 O17155-26;27/07/2026 05:00;28/07/2026;O;;;AVA- FATIGUE RISK FROM OPERATIONAL CHANGES;
 O17157-26;26/07/2026 20:55;28/07/2026;P;AO;Acceptable (4);AVA - FLT ASSINGMENT CHANGE AFFECTING DAY OFF (WLL);N960AV
 O17034-26;25/07/2026 15:50;27/07/2026;O;;;AVA- MULTIPLE AIRCRAFT CHANGES CAUSING OPERATIONAL DELAYS;N401AV
