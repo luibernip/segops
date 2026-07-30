@@ -56,10 +56,25 @@ jobs:
           cp reporte_bitacora_vs_tasks.html index.html
           git config user.name "AQD Bot"
           git config user.email "aqd-bot@users.noreply.github.com"
-          git pull --rebase origin main || true
+          # Confirmar ANTES de traer: en este punto siempre hay cambios sin
+          # confirmar (el reporte y los CSV recién regenerados) y un
+          # "git pull --rebase" con el árbol sucio aborta sin hacer nada.
           git add index.html bitacora_*.csv planner_raw.txt
-          git commit -m "Actualización $(TZ=America/Bogota date '+%Y-%m-%d %H:%M') COT" || echo "sin cambios"
-          git push
+          git commit -m "Actualización $(TZ=America/Bogota date '+%Y-%m-%d %H:%M') COT" \
+            || echo "sin cambios"
+          # Si otra corrida (o una publicación manual) empujó mientras tanto,
+          # reintentar sobre lo nuevo en vez de fallar.
+          for intento in 1 2 3; do
+            git pull --rebase origin main || true
+            if git push; then
+              echo "publicado (intento $intento)"
+              exit 0
+            fi
+            echo "push rechazado; reintentando…"
+            sleep 5
+          done
+          echo "::error::no se pudo publicar tras 3 intentos"
+          exit 1
 
       - name: Avisar si la sesión de Planner expiró
         if: always()
