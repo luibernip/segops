@@ -176,13 +176,17 @@ def main():
                 # De a 500 filas por página: pedir más de 1000 de un golpe
                 # devuelve 200 con la lista VACÍA cuando el tipo supera esas
                 # 1000 ocurrencias (le pasaba a GRH, que ronda las 1400).
-                todas = page.evaluate("""async () => {
+                # Se devuelve `records` (el total declarado por el portal)
+                # para exigir que estén TODAS: parar cuando una página no
+                # aporta filas nuevas acepta resultados parciales cuando las
+                # páginas se solapan (30-jul-2026: GRH quedó en 519 de 1405).
+                res = page.evaluate("""async () => {
                     const limpio = v => (v === null || v === undefined || v === 'null')
                                         ? '' : String(v);
                     const vistos = new Set();
-                    const todas = [];
-                    let records = null;
-                    for (let pagina = 1; pagina <= 40; pagina++) {
+                    const filas = [];
+                    let records = null, maxPag = 60;
+                    for (let pagina = 1; pagina <= maxPag; pagina++) {
                         const ctl = new AbortController();
                         setTimeout(() => ctl.abort(), 120000);
                         const r = await fetch('/AQDPortal/safety.aspx/Home/SearchOccurrencesList' +
@@ -190,17 +194,18 @@ def main():
                             '&sidx=OccurrenceDate&sord=desc',
                             {headers: {'Accept': 'application/json'}, signal: ctl.signal});
                         const j = await r.json();
-                        const filas = j.rows || [];
-                        if (!filas.length) break;
-                        if (j.records != null) records = j.records;
-                        let nuevas = 0;
-                        for (const f of filas) {
+                        const lote = j.rows || [];
+                        if (j.records != null) {
+                            records = j.records;
+                            maxPag = Math.min(60, Math.ceil(records / 500) + 3);
+                        }
+                        if (!lote.length) break;
+                        for (const f of lote) {
                             const c = f.cell || f;
                             const id = limpio(c.OccurrenceID);
-                            if (vistos.has(id)) continue;   // la última se repite
+                            if (vistos.has(id)) continue;  // pueden solaparse
                             vistos.add(id);
-                            nuevas++;
-                            todas.push({id: id,
+                            filas.push({id: id,
                                 fecha: limpio(c.OccurrenceDate),
                                 reg: limpio(c.RegisteredOn),
                                 estado: limpio(c.Status),
@@ -211,17 +216,22 @@ def main():
                                 mat: limpio(c.RegistrationMark),
                                 tipo: limpio(c.OccurrenceType)});
                         }
-                        if (!nuevas) break;
-                        if (records != null && todas.length >= records) break;
+                        if (records != null && filas.length >= records) break;
                     }
-                    return todas;
+                    return {records: records, filas: filas};
                 }""")
+                todas, records = res["filas"], res["records"]
                 datos = [d for d in todas
                          if any(a.upper() in d["tipo"].upper() for a in alias)]
-                if todas and len(datos) >= len(todas) * 0.5:
+                completo = records is None or len(todas) >= records
+                if todas and completo and len(datos) >= len(todas) * 0.5:
                     break
-                log(f"  criterios aún no aplicados ({len(datos)}/{len(todas)}); "
-                    "reintentando…")
+                log(f"  resultado incompleto o con criterios viejos "
+                    f"({len(datos)} del tipo, {len(todas)} de {records} "
+                    "declaradas); reintentando…")
+                datos = []          # parcial o de otro tipo: no sirve, y si
+                                    # se agotan los intentos vale más conservar
+                                    # el dato anterior que publicar un truncado
                 # el servidor puede no haber registrado la búsqueda: reintentarla
                 if intento in (2, 4):
                     try:
