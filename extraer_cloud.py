@@ -5,12 +5,14 @@ Extractor de Bitácora AQD para la nube (GitHub Actions).
 
 Corre headless, inicia sesión con las credenciales de las variables de
 entorno AQD_USUARIO / AQD_CLAVE, y extrae las ocurrencias activas Year to
-Date de los tipos FLT, CBN y FRM usando el endpoint JSON del portal.
+Date de los tipos FLT, CBN, FRM y GRH usando el endpoint JSON del portal.
 
-Escribe: bitacora_real.csv, bitacora_cbn_real.csv, bitacora_frm_real.csv
+Escribe: bitacora_real.csv, bitacora_cbn_real.csv, bitacora_frm_real.csv,
+bitacora_grh_real.csv
 (formato: id;fecha;registrada;estado;investigacion;riesgo;titulo;matricula)
 """
 
+import json
 import os
 import sys
 import time
@@ -21,9 +23,15 @@ from playwright.sync_api import sync_playwright
 
 CARPETA = Path(__file__).resolve().parent
 URL = "https://bitacora.avianca.com/AQDPortal/safety.aspx"
-TIPOS = (("FLT", "bitacora_real.csv"),
-         ("CBN", "bitacora_cbn_real.csv"),
-         ("FRM", "bitacora_frm_real.csv"))
+# (código para el reporte, CSV de salida, textos con que el portal nombra el
+# tipo: se prueba primero el rel exacto y luego rel/etiqueta que los contenga.
+# El rel y la etiqueta no siempre coinciden: rel CBN = "CAB Safety Occurrence"
+# y rel GRN = "GRH/ATO Safety Occurrence", de ahí que el código del reporte y
+# el alias del portal sean campos distintos)
+TIPOS = (("FLT", "bitacora_real.csv", ("FLT",)),
+         ("CBN", "bitacora_cbn_real.csv", ("CBN",)),
+         ("FRM", "bitacora_frm_real.csv", ("FRM",)),
+         ("GRH", "bitacora_grh_real.csv", ("GRN", "GRH/ATO")))
 # Fechas en hora de Colombia (el runner de GitHub está en UTC)
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -114,21 +122,30 @@ def main():
             sys.exit("ERROR: el panel Search Occurrences no cargó.")
         time.sleep(2)
 
-        for codigo, archivo in TIPOS:
+        for codigo, archivo, alias in TIPOS:
             log(f"Extrayendo {codigo}…")
             page.evaluate(f"""() => {{
-                const clicRel = (relRef, rel) => {{
+                const clicTipo = cods => {{
                     const ul = [...document.querySelectorAll('ul')].find(u =>
                         [...u.querySelectorAll('li')].some(li =>
-                            li.getAttribute('rel') === relRef));
-                    const li = [...ul.querySelectorAll('li')].find(li =>
-                        li.getAttribute('rel') === rel);
+                            li.getAttribute('rel') === 'FLT'));
+                    const lis = [...ul.querySelectorAll('li')];
+                    const rel = l => (l.getAttribute('rel') || '').toUpperCase();
+                    const txt = l => (l.textContent || '').toUpperCase();
+                    let li = null;
+                    for (const c of cods) {{ li = lis.find(l => rel(l) === c); if (li) break; }}
+                    for (const c of cods) {{
+                        if (li) break;
+                        li = lis.find(l => rel(l).includes(c) || txt(l).includes(c));
+                    }}
+                    if (!li) throw new Error('Tipo no encontrado; opciones: '
+                        + lis.map(rel).join(', '));
                     const a = li.querySelector('a') || li;
                     ['mousedown', 'mouseup'].forEach(t =>
                         a.dispatchEvent(new MouseEvent(t, {{bubbles: true}})));
                     a.click();
                 }};
-                clicRel('FLT', '{codigo}');                 // tipo de ocurrencia
+                clicTipo({json.dumps([a.upper() for a in alias])});   // tipo de ocurrencia
                 const ulSt = [...document.querySelectorAll('ul')].find(u =>
                     [...u.querySelectorAll('li')].some(li =>
                         (li.textContent || '').includes('All Active')));
@@ -156,19 +173,34 @@ def main():
             datos = []
             for intento in range(8):
                 time.sleep(8 if intento == 0 else 6)
+                # De a 500 filas por página: pedir más de 1000 de un golpe
+                # devuelve 200 con la lista VACÍA cuando el tipo supera esas
+                # 1000 ocurrencias (le pasaba a GRH, que ronda las 1400).
                 todas = page.evaluate("""async () => {
-                    const ctl = new AbortController();
-                    setTimeout(() => ctl.abort(), 120000);
-                    const r = await fetch('/AQDPortal/safety.aspx/Home/SearchOccurrencesList' +
-                        '?withOccTypes=True&_search=false&rows=1500&page=1' +
-                        '&sidx=OccurrenceDate&sord=desc',
-                        {headers: {'Accept': 'application/json'}, signal: ctl.signal});
-                    const j = await r.json();
                     const limpio = v => (v === null || v === undefined || v === 'null')
                                         ? '' : String(v);
-                    return (j.rows || []).map(f => {
-                        const c = f.cell || f;
-                        return {id: limpio(c.OccurrenceID),
+                    const vistos = new Set();
+                    const todas = [];
+                    let records = null;
+                    for (let pagina = 1; pagina <= 40; pagina++) {
+                        const ctl = new AbortController();
+                        setTimeout(() => ctl.abort(), 120000);
+                        const r = await fetch('/AQDPortal/safety.aspx/Home/SearchOccurrencesList' +
+                            '?withOccTypes=True&_search=false&rows=500&page=' + pagina +
+                            '&sidx=OccurrenceDate&sord=desc',
+                            {headers: {'Accept': 'application/json'}, signal: ctl.signal});
+                        const j = await r.json();
+                        const filas = j.rows || [];
+                        if (!filas.length) break;
+                        if (j.records != null) records = j.records;
+                        let nuevas = 0;
+                        for (const f of filas) {
+                            const c = f.cell || f;
+                            const id = limpio(c.OccurrenceID);
+                            if (vistos.has(id)) continue;   // la última se repite
+                            vistos.add(id);
+                            nuevas++;
+                            todas.push({id: id,
                                 fecha: limpio(c.OccurrenceDate),
                                 reg: limpio(c.RegisteredOn),
                                 estado: limpio(c.Status),
@@ -177,10 +209,15 @@ def main():
                                         ? ' (' + limpio(c.RiskRating) + ')' : ''),
                                 titulo: limpio(c.OccurrenceTitle),
                                 mat: limpio(c.RegistrationMark),
-                                tipo: limpio(c.OccurrenceType)};
-                    });
+                                tipo: limpio(c.OccurrenceType)});
+                        }
+                        if (!nuevas) break;
+                        if (records != null && todas.length >= records) break;
+                    }
+                    return todas;
                 }""")
-                datos = [d for d in todas if codigo in d["tipo"].upper()]
+                datos = [d for d in todas
+                         if any(a.upper() in d["tipo"].upper() for a in alias)]
                 if todas and len(datos) >= len(todas) * 0.5:
                     break
                 log(f"  criterios aún no aplicados ({len(datos)}/{len(todas)}); "
@@ -193,7 +230,7 @@ def main():
                         pass
             if not datos:
                 # FLT es el tipo principal: si falla, no hay reporte que valga.
-                # CBN/FRM son secundarios: se conserva su último dato y se
+                # CBN/FRM/GRH son secundarios: se conserva su último dato y se
                 # continúa, para no tumbar toda la actualización por un tipo.
                 if codigo == "FLT":
                     sys.exit("ERROR: FLT (tipo principal) no devolvió resultados.")

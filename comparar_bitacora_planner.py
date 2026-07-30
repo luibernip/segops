@@ -1219,7 +1219,8 @@ def main():
     # Pestañas adicionales por tipo (opcionales): siempre Year to Date
     extras = {}
     for codigo, archivo in (("CBN", "bitacora_cbn.csv"),
-                            ("FRM", "bitacora_frm.csv")):
+                            ("FRM", "bitacora_frm.csv"),
+                            ("GRH", "bitacora_grh.csv")):
         ruta_x = CARPETA / archivo
         if ruta_x.exists():
             extras[codigo] = cargar_bitacora(ruta_x)

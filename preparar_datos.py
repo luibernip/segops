@@ -92,4 +92,5 @@ if __name__ == "__main__":
     preparar_bitacora()
     preparar_bitacora("bitacora_cbn_real.csv", "bitacora_cbn.csv", opcional=True)
     preparar_bitacora("bitacora_frm_real.csv", "bitacora_frm.csv", opcional=True)
+    preparar_bitacora("bitacora_grh_real.csv", "bitacora_grh.csv", opcional=True)
     preparar_planner()
