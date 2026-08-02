@@ -128,7 +128,7 @@
 <header>
   <h1><span class="logo">avianca</span> · Bitácora AQD vs Planner Tasks</h1>
   <p>Bitácora: Occurrence type FLT · State: All Active · Year to date ·
-     COAs: AVA, GLG, TAI, LRC, AVR, TPA, TNO, GUG &nbsp;|&nbsp; Generado: 02-Aug-2026 15:57 (hora Colombia)</p>
+     COAs: AVA, GLG, TAI, LRC, AVR, TPA, TNO, GUG &nbsp;|&nbsp; Generado: 02-Aug-2026 16:57 (hora Colombia)</p>
 </header>
 <main>
   
@@ -1342,8 +1342,8 @@
           <div class="tarjeta"><div class="valor">1352</div><div class="etq">Ocurrencias GRH activas<br>(Year to Date)</div></div>
           <div class="tarjeta"><div class="valor">1264</div><div class="etq">OPEN</div></div>
           <div class="tarjeta"><div class="valor">88</div><div class="etq">In Progress</div></div>
-          <div class="tarjeta"><div class="valor">1078</div><div class="etq">Con riesgo asignado</div></div>
-          <div class="tarjeta rojo"><div class="valor">274</div><div class="etq">Sin riesgo asignado</div></div></div>
+          <div class="tarjeta"><div class="valor">1079</div><div class="etq">Con riesgo asignado</div></div>
+          <div class="tarjeta rojo"><div class="valor">273</div><div class="etq">Sin riesgo asignado</div></div></div>
           <div class="graficos">
             <div class="grafico"><h3>Ocurrencias con riesgo vs sin riesgo</h3>
               <canvas id="gRiesgoGRH"></canvas></div>
@@ -1593,7 +1593,7 @@
 <tr><td>O16413-26</td><td>AVA</td><td data-orden="2026-07-20 20:56">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (1)</td><td>AVA- UNREPORTED BAGGAGE DISCREPANCY IN CARGO COMPARTMENT</td></tr>
 <tr><td>O16428-26</td><td>AVA</td><td data-orden="2026-07-20 20:30">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>AVA- POTENTIAL GROUND EQUIPMENT IMPACT DURING PUSHBACK</td></tr>
 <tr><td>O16456-26</td><td>AVA</td><td data-orden="2026-07-20 13:25">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- FUEL TRUCK REFUELING WITHOUT INTERPHONE SIGNAL DURING GROUND HANDLING</td></tr>
-<tr><td>O16469-26</td><td>AVA</td><td data-orden="2026-07-20 08:45">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- UNSECURED FRONT CARGO DOOR LOCK DURING ARRIVAL</td></tr>
+<tr><td>O16469-26</td><td>AVA</td><td data-orden="2026-07-20 08:45">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>Open</td><td></td><td>Acceptable (4)</td><td>AVA- UNSECURED FRONT CARGO DOOR LOCK DURING ARRIVAL</td></tr>
 <tr><td>O16474-26</td><td>AVA</td><td data-orden="2026-07-20 07:50">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- GROUND EQUIPMENT FAILURE DURING AIRCRAFT TOWING</td></tr>
 <tr><td>O16475-26</td><td>AVA</td><td data-orden="2026-07-20 07:45">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- GROUND EQUIPMENT IMPACT RISK DURING PARKING MANEUVER</td></tr>
 <tr><td>O16478-26</td><td>AVA</td><td data-orden="2026-07-20 07:43">20-Jul-2026</td><td data-orden="2026-07-23 00:00">23-Jul-2026</td><td>10</td><td>Open</td><td></td><td></td><td>AVA- DAMAGED SAFETY RAIL ON AIRCRAFT CONVEYOR</td></tr>
@@ -2847,7 +2847,7 @@ const chMes = new Chart(document.getElementById("gMes"), {
 // ---------------------------------------------------------------------------
 // Pestaña CBN: gráficas y conmutador de pestañas
 // ---------------------------------------------------------------------------
-const DX = {"CBN": {"riesgo": {"Con riesgo": 38, "Sin riesgo asignado": 1}, "dias": {"labels": ["AVA", "GLG", "TAI"], "valores": [10.6, 16.7, 5.0]}}, "FRM": {"riesgo": {"Con riesgo": 419, "Sin riesgo asignado": 13}, "dias": {"labels": ["AVA", "GLG", "TAI", "AVR", "TPA", "Otros"], "valores": [94.3, 98.5, 104.7, 145.0, 107.8, 45.0]}}, "GRH": {"riesgo": {"Con riesgo": 1078, "Sin riesgo asignado": 274}, "dias": {"labels": ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "TNO", "GUG", "Otros"], "valores": [78.0, 21.1, 16.4, 31.7, 79.9, 91.9, 15.4, 40.4, 48.8]}}};
+const DX = {"CBN": {"riesgo": {"Con riesgo": 38, "Sin riesgo asignado": 1}, "dias": {"labels": ["AVA", "GLG", "TAI"], "valores": [10.6, 16.7, 5.0]}}, "FRM": {"riesgo": {"Con riesgo": 419, "Sin riesgo asignado": 13}, "dias": {"labels": ["AVA", "GLG", "TAI", "AVR", "TPA", "Otros"], "valores": [94.3, 98.5, 104.7, 145.0, 107.8, 45.0]}}, "GRH": {"riesgo": {"Con riesgo": 1079, "Sin riesgo asignado": 273}, "dias": {"labels": ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "TNO", "GUG", "Otros"], "valores": [78.0, 21.1, 16.4, 31.7, 79.9, 91.9, 15.4, 40.4, 48.8]}}};
 Object.entries(DX || {}).forEach(([cod, d]) => {
   const cR = document.getElementById("gRiesgo" + cod);
   const cD = document.getElementById("gDias" + cod);
