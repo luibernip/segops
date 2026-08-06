@@ -110,7 +110,10 @@ COLORES = {
     "gris_claro":  "#F4F4F4",
     "blanco":      "#FFFFFF",
     "dorado":      "#C8A96A",
-    "rosado_crema": "#F0C7BC",   # barra de Pinilla en el reparto por responsable
+    # Reparto por responsable: verde para Juan Jahir, rosado crema para Pinilla
+    "verde_resp": "#0B6623",
+    "verde_resp_borde": "#084D1A",
+    "rosado_crema": "#F0C7BC",
     "rosado_borde": "#D99C8C",
 }
 
@@ -967,8 +970,8 @@ const chResponsables = new Chart(document.getElementById("gResponsables"), {{
   data: {{ labels: D.responsables.labels,
     datasets: [{{ label: "Ocurrencias In Progress",
       data: D.responsables.valores,
-      backgroundColor: [C.azul_oscuro, C.rosado_crema],
-      borderColor: [C.azul_oscuro, C.rosado_borde],
+      backgroundColor: [C.verde_resp, C.rosado_crema],
+      borderColor: [C.verde_resp_borde, C.rosado_borde],
       borderWidth: 1, borderRadius: 6, maxBarThickness: 120 }}] }},
   options: {{ maintainAspectRatio: false,   // que llene el ancho de la tarjeta
     plugins: {{ legend: {{ display: false }},
