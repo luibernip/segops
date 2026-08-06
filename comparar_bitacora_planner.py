@@ -61,6 +61,14 @@ PATRON_EVENTO = re.compile(r"O\d{1,5}-\d{2}", re.IGNORECASE)
 # COAs (certificados de operación) de Avianca: se detectan por el prefijo
 # del título de la ocurrencia (p.ej. "GLG- GO AROUND AT UIO ...").
 COAS = ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "TNO", "GUG"]
+
+# Reparto de las ocurrencias In Progress entre los dos responsables: los COA
+# de Colombia los lleva Juan Jahir y el resto Pinilla.
+COAS_COLOMBIA = ["AVA", "AVR", "TPA"]
+RESPONSABLES = [
+    ("Juan Jahir", COAS_COLOMBIA),
+    ("Pinilla", [c for c in COAS if c not in COAS_COLOMBIA]),
+]
 PATRON_COA = re.compile(r"^\s*(" + "|".join(COAS) + r")\b", re.IGNORECASE)
 
 # Días máximos que una ocurrencia puede llevar abierta (desde su registro)
@@ -102,6 +110,8 @@ COLORES = {
     "gris_claro":  "#F4F4F4",
     "blanco":      "#FFFFFF",
     "dorado":      "#C8A96A",
+    "rosado_crema": "#F0C7BC",   # barra de Pinilla en el reparto por responsable
+    "rosado_borde": "#D99C8C",
 }
 
 # Todas las fechas/horas en hora de Colombia, sin importar dónde corra el
@@ -494,6 +504,19 @@ def generar_html(bit, pla, r, salida, extras=None):
         if k not in riesgos:
             riesgos[k] = int(vc[k])
 
+    # Reparto de la carga In Progress entre los dos responsables. Se cuentan
+    # ocurrencias de Bitácora en estado In Progress (no tareas de Planner).
+    en_progreso = bit[~bit["Abierto"]]
+    responsables = {
+        "labels": [nombre for nombre, _ in RESPONSABLES],
+        "valores": [int(en_progreso["COA"].isin(coas).sum())
+                    for _, coas in RESPONSABLES],
+        "coas": [", ".join(coas) for _, coas in RESPONSABLES],
+    }
+    # Las que no traen un COA reconocible en el título no son de nadie: se
+    # informan aparte para que no se pierdan sin que nadie lo note.
+    responsables["sin_coa"] = int(len(en_progreso) - sum(responsables["valores"]))
+
     # Datos por COA para el filtro interactivo de las gráficas
     por_coa = {}
     for coa in ["Todos"] + orden_coa:
@@ -538,6 +561,7 @@ def generar_html(bit, pla, r, salida, extras=None):
         "dias_prom": dias_prom,
         "riesgo_prom": riesgo_prom,
         "riesgos": riesgos,
+        "responsables": responsables,
         "por_coa": por_coa,
         "colores": COLORES,
     }, ensure_ascii=False)
@@ -706,6 +730,33 @@ def generar_html(bit, pla, r, salida, extras=None):
   .grafico.ancho {{ grid-column: 1 / -1; }}
   .grafico canvas {{ max-height: 300px; }}
   #gCoaInv {{ height: 340px !important; max-height: 340px !important; }}
+  #gResponsables {{ height: 300px !important; max-height: 300px !important; }}
+
+  /* Pantallas grandes: aprovechar el ancho en vez de dejar medio monitor en
+     blanco. Hasta 1080p (y la mayoría de portátiles) todo queda igual que
+     antes; a partir de ahí el contenido crece por tramos, y las rejillas de
+     tarjetas y gráficas van agregando columnas solas (auto-fit). */
+  @media (min-width: 2000px) {{
+    main {{ max-width: 1700px; }}
+    .grafico canvas {{ max-height: 340px; }}
+    #gCoaInv {{ height: 380px !important; max-height: 380px !important; }}
+    #gResponsables {{ height: 340px !important; max-height: 340px !important; }}
+  }}
+  @media (min-width: 2500px) {{           /* 2K/QHD y ultrapanorámicas */
+    main {{ max-width: 2150px; padding: 30px 28px 70px; }}
+    .grafico canvas {{ max-height: 380px; }}
+    #gCoaInv {{ height: 420px !important; max-height: 420px !important; }}
+    #gResponsables {{ height: 380px !important; max-height: 380px !important; }}
+    .tarjeta .valor {{ font-size: 36px; }}
+  }}
+  @media (min-width: 3400px) {{           /* 4K */
+    main {{ max-width: 3000px; padding: 34px 36px 80px; }}
+    .grafico canvas {{ max-height: 440px; }}
+    #gCoaInv {{ height: 480px !important; max-height: 480px !important; }}
+    #gResponsables {{ height: 440px !important; max-height: 440px !important; }}
+    .tarjeta .valor {{ font-size: 40px; }}
+    body {{ font-size: 17px; }}
+  }}
 
   .chips-graficas {{ background: var(--blanco); border-radius: 10px;
       box-shadow: 0 1px 4px rgba(0,0,0,.08); border-top: none;
@@ -803,6 +854,8 @@ def generar_html(bit, pla, r, salida, extras=None):
       <canvas id="gCoaInv"></canvas></div>
     <div class="grafico"><h3>Nivel de riesgo (todas las ocurrencias)</h3>
       <canvas id="gRiesgo"></canvas></div>
+    <div class="grafico"><h3>Ocurrencias In Progress por responsable</h3>
+      <canvas id="gResponsables"></canvas></div>
     <div class="grafico ancho"><h3>Días promedio abierta por COA</h3>
       <canvas id="gDias"></canvas></div>
     <div class="grafico ancho"><h3>Riesgo promedio por COA</h3>
@@ -894,6 +947,26 @@ const chRiesgo = new Chart(document.getElementById("gRiesgo"), {{
       backgroundColor: Object.keys(D.riesgos).map(k => colorRiesgo[k] || C.gris),
       borderWidth: 2 }}] }},
   options: {{ cutout: "62%", plugins: {{ legend: {{ position: "bottom" }} }} }}
+}});
+
+// Reparto de las ocurrencias In Progress entre los dos responsables:
+// Juan Jahir se queda con los COA de Colombia y Pinilla con el resto.
+const chResponsables = new Chart(document.getElementById("gResponsables"), {{
+  type: "bar",
+  data: {{ labels: D.responsables.labels,
+    datasets: [{{ label: "Ocurrencias In Progress",
+      data: D.responsables.valores,
+      backgroundColor: [C.azul_oscuro, C.rosado_crema],
+      borderColor: [C.azul_oscuro, C.rosado_borde],
+      borderWidth: 1, borderRadius: 6, maxBarThickness: 120 }}] }},
+  options: {{ maintainAspectRatio: false,   // que llene el ancho de la tarjeta
+    plugins: {{ legend: {{ display: false }},
+      datalabels: etiquetaArriba,
+      tooltip: {{ callbacks: {{ afterLabel: ctx =>
+          "COA: " + D.responsables.coas[ctx.dataIndex] }} }} }},
+    scales: {{ y: {{ beginAtZero: true, grace: "12%",
+                     ticks: {{ precision: 0 }},
+                     title: {{ display: true, text: "ocurrencias" }} }} }} }}
 }});
 
 const chDias = new Chart(document.getElementById("gDias"), {{

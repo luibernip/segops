@@ -54,6 +54,63 @@ def esperar(page, cond_js, seg):
     return False
 
 
+# El rango de fechas NO se fija escribiendo #Criteria_FromDate/#Criteria_ToDate:
+# los gobierna un widget mcDropdown de preajustes y el servidor usa el preajuste
+# GUARDADO, no lo que uno escriba en el campo oculto. Hay que hacer clic de
+# verdad en "Year to Date" y dejar que el widget rellene las fechas.
+# (06-ago-2026: la búsqueda guardada quedó en julio y la nube publicó días
+# enteros con solo ese mes — FRM 70 en vez de 460 — sin que nada lo detectara.)
+JS_CLIC_YTD = """() => {
+    const ul = [...document.querySelectorAll('ul')].find(u =>
+        [...u.querySelectorAll('li')].some(li =>
+            /year to date/i.test(li.textContent || '')));
+    if (!ul) throw new Error('No encontré el menú de rango de fechas');
+    const li = [...ul.querySelectorAll('li')].find(li =>
+        /year to date/i.test(li.textContent || ''));
+    const a = li.querySelector('a') || li;
+    ['mousedown', 'mouseup'].forEach(t =>
+        a.dispatchEvent(new MouseEvent(t, {bubbles: true})));
+    a.click();
+}"""
+
+JS_LEER_FECHAS = ("() => ({desde: (document.querySelector('#Criteria_FromDate')"
+                  " || {}).value, hasta: (document.querySelector"
+                  "('#Criteria_ToDate') || {}).value})")
+
+
+def fijar_rango_ytd(page):
+    """Deja la búsqueda en Year to Date y comprueba que el widget lo aplicó."""
+    page.evaluate(JS_CLIC_YTD)
+    time.sleep(1)
+    esperado = f"{HOY.year}-01-01"
+    fechas = page.evaluate(JS_LEER_FECHAS)
+    if fechas.get("desde") != esperado:
+        raise RuntimeError(
+            f"El rango quedó en {fechas.get('desde')} → {fechas.get('hasta')} "
+            f"cuando se esperaba desde {esperado}: el preajuste 'Year to Date' "
+            "no se aplicó y el portal devolvería solo parte del año.")
+    return fechas
+
+
+def guardia_desplome(ruta, nuevas, codigo):
+    """¿La extracción se desploma frente al último dato bueno? Red de seguridad
+    para causas que no sepamos prever: cualquier filtro que recorte la búsqueda
+    se ve como una caída brusca. No aplica si el CSV anterior es de otro año
+    (en enero el Year to Date sí se reinicia de verdad)."""
+    ruta = Path(ruta)
+    if not ruta.exists():
+        return True
+    if datetime.fromtimestamp(ruta.stat().st_mtime).year != HOY.year:
+        return True
+    anteriores = max(0, len(ruta.read_text(encoding="utf-8").splitlines()) - 1)
+    if anteriores >= 50 and nuevas < anteriores * 0.6:
+        log(f"  AVISO: {codigo} trajo {nuevas} ocurrencias y la vez anterior "
+            f"eran {anteriores}. Una caída así casi siempre es un filtro mal "
+            "aplicado, no la realidad: se conserva el dato anterior.")
+        return False
+    return True
+
+
 def guardar_csv(datos, ruta):
     inv_cod = {"Logged for Statistics": "LS", "Assessment Only": "AO",
                "Full Investigation": "FI", "Quick Review": "QR"}
@@ -155,20 +212,14 @@ def main():
                 ['mousedown', 'mouseup'].forEach(t =>
                     aAA.dispatchEvent(new MouseEvent(t, {{bubbles: true}})));
                 aAA.click();                                 // All Active
-                const fijar = (sel, v) => {{
-                    const e = document.querySelector(sel);
-                    if (e) e.value = v;
-                }};
-                fijar('#Criteria_FromDate', '{HOY.year}-01-01');
-                fijar('#CriteriaDateStartFromPicker', '01/01/{HOY.year}');
-                fijar('#Criteria_ToDate', '{HOY.isoformat()}');
-                fijar('#CriteriaDateStartToPicker', '{HOY.strftime("%d/%m/%Y")}');
+                // las fechas las pone el preajuste Year to Date, aparte
                 const txt = document.querySelector('[id="Criteria_Text"]');
                 if (txt) txt.value = '';
                 const num = document.querySelector('[id="Criteria_OccurrenceNo"]');
                 if (num) num.value = '';
-                occurrencesSearchClicked();   // guarda los criterios en el servidor
             }}""")
+            fijar_rango_ytd(page)         # clic real en el preajuste de fechas
+            page.evaluate("() => occurrencesSearchClicked()")  # guarda criterios
 
             datos = []
             for intento in range(8):
@@ -246,6 +297,11 @@ def main():
                     sys.exit("ERROR: FLT (tipo principal) no devolvió resultados.")
                 log(f"  AVISO: {codigo} no devolvió resultados; se conserva "
                     "el dato anterior de esa pestaña y se continúa.")
+                continue
+            if not guardia_desplome(CARPETA / archivo, len(datos), codigo):
+                if codigo == "FLT":
+                    sys.exit("ERROR: FLT se desplomó frente al dato anterior; "
+                             "no se publica para no dañar el reporte.")
                 continue
             guardar_csv(datos, CARPETA / archivo)
             abiertas = sum(1 for d in datos if d["estado"] == "Open")
