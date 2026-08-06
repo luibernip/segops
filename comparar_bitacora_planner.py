@@ -62,6 +62,34 @@ PATRON_EVENTO = re.compile(r"O\d{1,5}-\d{2}", re.IGNORECASE)
 # del título de la ocurrencia (p.ej. "GLG- GO AROUND AT UIO ...").
 COAS = ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "TNO", "GUG"]
 
+# Lagarto que se agarra del borde superior de la barra de Pinilla. Dibujo
+# propio (no es ningún personaje con derechos de autor). El cuerpo va sobre
+# el borde y las patas cuelgan por delante, para que parezca trepado.
+SVG_LAGARTO = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 128">
+  <g fill="none" stroke="#2F6B18" stroke-width="8" stroke-linecap="round">
+    <path d="M150 50 q30 -4 32 -26 q1 -15 -13 -15 q-11 0 -10 11"/>
+    <path d="M131 56 q12 16 3 30"/>
+    <path d="M115 59 q-3 19 -15 26"/>
+    <path d="M74 57 q9 18 1 31"/>
+    <path d="M57 55 q-7 17 -20 23"/>
+  </g>
+  <path d="M38 46 q11 -15 34 -13 q30 3 50 6 q23 3 29 13 q-9 11 -31 12
+           q-31 2 -51 0 q-25 -2 -31 -18 z"
+        fill="#4C9A2A" stroke="#2F6B18" stroke-width="3.5" stroke-linejoin="round"/>
+  <path d="M46 54 q30 7 76 6 q18 0 24 -3 q-9 9 -29 10 q-31 2 -51 0 q-14 -1 -20 -13 z"
+        fill="#7CC24F"/>
+  <ellipse cx="33" cy="44" rx="21" ry="15" fill="#4C9A2A"
+           stroke="#2F6B18" stroke-width="3.5"/>
+  <path d="M18 48 q10 5 22 3" fill="none" stroke="#2F6B18" stroke-width="2.5"
+        stroke-linecap="round"/>
+  <circle cx="26" cy="38" r="6" fill="#FFFFFF" stroke="#2F6B18" stroke-width="2.5"/>
+  <circle cx="24.5" cy="38" r="2.8" fill="#1B1B1B"/>
+  <g fill="#2F6B18">
+    <circle cx="37" cy="79" r="4.5"/><circle cx="75" cy="89" r="4.5"/>
+    <circle cx="100" cy="86" r="4.5"/><circle cx="134" cy="87" r="4.5"/>
+  </g>
+</svg>"""
+
 # Reparto de las ocurrencias In Progress entre los dos responsables: los COA
 # de Colombia los lleva Juan Jahir y el resto Pinilla.
 COAS_COLOMBIA = ["AVA", "AVR", "TPA"]
@@ -671,6 +699,7 @@ def generar_html(bit, pla, r, salida, extras=None):
         abre_flt = '<div id="tab-flt" class="panel-tab activo">'
         cierra_flt = "</div>\n" + paneles_extras
     datos_extras_js = json.dumps(datos_extras, ensure_ascii=False) if datos_extras else "null"
+    svg_lagarto_js = json.dumps(SVG_LAGARTO)
 
     secciones = "".join([
         seccion(1, "Eventos en Bitácora que no están en Tasks",
@@ -972,6 +1001,24 @@ const chRiesgo = new Chart(document.getElementById("gRiesgo"), {{
 
 // Reparto de las ocurrencias In Progress entre los dos responsables:
 // Juan Jahir se queda con los COA de Colombia y Pinilla con el resto.
+// El lagarto se agarra del borde superior de la barra de Pinilla; se dibuja
+// después de las barras para que quede encima, y se reescala con ellas.
+const lagarto = new Image();
+lagarto.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent({svg_lagarto_js});
+const plugLagarto = {{
+  id: "lagarto",
+  afterDatasetsDraw(ch) {{
+    if (!lagarto.complete || !lagarto.naturalWidth) return;
+    const barra = ch.getDatasetMeta(0).data[1];      // 1 = Pinilla
+    if (!barra) return;
+    const ancho = Math.max(55, Math.min(barra.width * 0.62, 130));
+    const alto = ancho * 128 / 200;
+    // pegado al borde derecho: así no tapa la cifra, que va centrada arriba
+    const x = barra.x + barra.width / 2 - ancho * 0.72;
+    ch.ctx.drawImage(lagarto, x, barra.y - alto * 0.34, ancho, alto);
+  }}
+}};
+
 const chResponsables = new Chart(document.getElementById("gResponsables"), {{
   type: "bar",
   data: {{ labels: D.responsables.labels,
@@ -980,6 +1027,7 @@ const chResponsables = new Chart(document.getElementById("gResponsables"), {{
       backgroundColor: [C.verde_resp, C.rosado_crema],
       borderColor: [C.verde_resp_borde, C.rosado_borde],
       borderWidth: 1, borderRadius: 6, maxBarThickness: 120 }}] }},
+  plugins: [plugLagarto],
   options: {{ maintainAspectRatio: false,   // que llene el ancho de la tarjeta
     plugins: {{ legend: {{ display: false }},
       datalabels: etiquetaArriba,
@@ -989,6 +1037,8 @@ const chResponsables = new Chart(document.getElementById("gResponsables"), {{
                      ticks: {{ precision: 0 }},
                      title: {{ display: true, text: "ocurrencias" }} }} }} }}
 }});
+
+lagarto.onload = () => chResponsables.draw();
 
 const chDias = new Chart(document.getElementById("gDias"), {{
   type: "bar",
