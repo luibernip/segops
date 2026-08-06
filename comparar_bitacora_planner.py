@@ -329,6 +329,10 @@ def comparar(bit, pla):
     # definición examina las completadas.
     activas = pla[~pla["Completada"]]
     eventos_task = set(activas["Evento"].dropna())
+    # Cualquier tarea, esté activa o completada. Se usa para el punto 5, que
+    # busca ocurrencias SIN NINGÚN seguimiento: si la tarea existe pero está
+    # completada, el caso ya sale en el punto 3 y duplicarlo confunde.
+    eventos_con_alguna_task = set(pla["Evento"].dropna())
 
     r = {}
     # 1. OPEN en Bitácora sin ningún tipo de investigación
@@ -352,8 +356,9 @@ def comparar(bit, pla):
     # 6. OPEN en Bitácora y con tarea activa
     r["open_con_task"] = bit[bit["Abierto"] & bit["Evento"].isin(eventos_task)]
 
-    # 6. Eventos In Progress en Bitácora sin tarea activa en Tasks
-    r["prog_sin_task"] = bit[~bit["Abierto"] & ~bit["Evento"].isin(eventos_task)]
+    # 6. Eventos In Progress en Bitácora sin NINGUNA tarea en Tasks
+    r["prog_sin_task"] = bit[~bit["Abierto"]
+                             & ~bit["Evento"].isin(eventos_con_alguna_task)]
 
     return r
 
@@ -473,7 +478,7 @@ def generar_html(bit, pla, r, salida, extras=None):
     coa_open = df_coa["OPEN"].tolist()
     coa_prog = df_coa["In Progress"].tolist()
     # Tasks vs Bitácora por COA: SOLO ocurrencias In Progress (se omiten las
-    # OPEN); cuántas tienen tarea activa en Planner y cuántas no
+    # OPEN); cuántas tienen alguna tarea en Planner y cuántas ninguna
     sin_task_por_coa = r["prog_sin_task"]["COA"].value_counts()
     coa_sin_task = [int(sin_task_por_coa.get(c, 0)) for c in coa_labels]
     coa_con_task = [max(int(t) - s, 0) for t, s in zip(coa_prog, coa_sin_task)]
@@ -682,7 +687,9 @@ def generar_html(bit, pla, r, salida, extras=None):
                 "Tareas no completadas con fecha de vencimiento anterior a hoy",
                 r["task_vencidas"], cols_t),
         seccion(5, "Eventos en Bitácora In Progress sin Task",
-                "Ocurrencias In Progress sin tarea activa de seguimiento en Planner",
+                "Ocurrencias In Progress que no tienen NINGUNA tarea en Planner, "
+                "ni activa ni completada · las que sí tienen tarea pero ya "
+                "completada están en el punto 3",
                 r["prog_sin_task"], cols_b),
     ])
 
