@@ -728,6 +728,15 @@ def generar_html(bit, pla, r, salida, extras=None):
   .grafico h3 {{ margin: 0 0 10px; font-size: 14px; color: var(--gris);
                  text-transform: uppercase; letter-spacing: .5px; }}
   .grafico.ancho {{ grid-column: 1 / -1; }}
+
+  /* Par "Días promedio abierta por COA" + "Riesgo promedio por COA": ocupan
+     toda la fila y se apilan, como el resto de gráficas anchas. Desde 1710 px
+     de ancho de ventana caben una al lado de la otra sin apretarse. */
+  .grafico-par {{ grid-column: 1 / -1; display: grid; gap: 16px;
+                  grid-template-columns: 1fr; }}
+  @media (min-width: 1710px) {{
+    .grafico-par {{ grid-template-columns: 1fr 1fr; }}
+  }}
   .grafico canvas {{ max-height: 300px; }}
   #gCoaInv {{ height: 340px !important; max-height: 340px !important; }}
   #gResponsables {{ height: 300px !important; max-height: 300px !important; }}
@@ -856,10 +865,12 @@ def generar_html(bit, pla, r, salida, extras=None):
       <canvas id="gRiesgo"></canvas></div>
     <div class="grafico"><h3>Ocurrencias In Progress por responsable</h3>
       <canvas id="gResponsables"></canvas></div>
-    <div class="grafico ancho"><h3>Días promedio abierta por COA</h3>
-      <canvas id="gDias"></canvas></div>
-    <div class="grafico ancho"><h3>Riesgo promedio por COA</h3>
-      <canvas id="gBarras"></canvas></div>
+    <div class="grafico-par">
+      <div class="grafico"><h3>Días promedio abierta por COA</h3>
+        <canvas id="gDias"></canvas></div>
+      <div class="grafico"><h3>Riesgo promedio por COA</h3>
+        <canvas id="gBarras"></canvas></div>
+    </div>
     <div class="grafico"><h3>Ocurrencias vs Tasks (todas: Open + In Progress)</h3>
       <canvas id="gCobertura"></canvas></div>
     <div class="grafico"><h3>Progreso de tareas en Planner</h3>
