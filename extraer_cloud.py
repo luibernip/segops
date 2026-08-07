@@ -13,6 +13,7 @@ bitacora_grh_real.csv
 """
 
 import json
+import re
 import os
 import sys
 import time
@@ -78,17 +79,38 @@ JS_LEER_FECHAS = ("() => ({desde: (document.querySelector('#Criteria_FromDate')"
                   "('#Criteria_ToDate') || {}).value})")
 
 
+def es_primero_de_enero(valor, anio):
+    """¿El campo de fecha corresponde al 1 de enero de `anio`?
+
+    El portal devuelve el valor en formatos distintos según el navegador:
+    "2026-01-01" en el Mac y "01/01/2026 12:00:00 a. m." en el runner de la
+    nube (otra configuración regional). Comparar contra un formato fijo tumbó
+    la extracción entera el 06-ago-2026 aunque el rango era correcto.
+    """
+    if not valor:
+        return False
+    v = str(valor).strip()
+    m = re.match(r"(\d{4})-(\d{1,2})-(\d{1,2})", v)
+    if m:
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3))) == (anio, 1, 1)
+    m = re.match(r"(\d{1,2})/(\d{1,2})/(\d{4})", v)   # dd/mm o mm/dd: da igual
+    if m:                                              # para el 1 de enero
+        return (int(m.group(3)), int(m.group(2)), int(m.group(1))) == (anio, 1, 1)
+    return False
+
+
 def fijar_rango_ytd(page):
     """Deja la búsqueda en Year to Date y comprueba que el widget lo aplicó."""
     page.evaluate(JS_CLIC_YTD)
     time.sleep(1)
-    esperado = f"{HOY.year}-01-01"
+    anio = HOY.year
     fechas = page.evaluate(JS_LEER_FECHAS)
-    if fechas.get("desde") != esperado:
+    if not es_primero_de_enero(fechas.get("desde"), anio):
         raise RuntimeError(
             f"El rango quedó en {fechas.get('desde')} → {fechas.get('hasta')} "
-            f"cuando se esperaba desde {esperado}: el preajuste 'Year to Date' "
-            "no se aplicó y el portal devolvería solo parte del año.")
+            f"cuando se esperaba desde el 1 de enero de {anio}: el preajuste "
+            "'Year to Date' no se aplicó y el portal devolvería solo parte "
+            "del año.")
     return fechas
 
 
