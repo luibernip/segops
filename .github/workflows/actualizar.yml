@@ -76,6 +76,31 @@ jobs:
           echo "::error::no se pudo publicar tras 3 intentos"
           exit 1
 
+      - name: Espejo en Cloudflare Pages
+        # Corre SIEMPRE, incluso si el push a GitHub falló: el sentido del
+        # espejo es servir la página cuando GitHub no puede.
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "Sin CLOUDFLARE_API_TOKEN: se omite el espejo."
+            exit 0
+          fi
+          if [ ! -f reporte_bitacora_vs_tasks.html ]; then
+            echo "No hay reporte generado; se omite el espejo."
+            exit 0
+          fi
+          # Cada despliegue REEMPLAZA el sitio completo, así que hay que subir
+          # también tod.html o el dashboard TOD desaparecería del espejo.
+          rm -rf _espejo && mkdir _espejo
+          cp reporte_bitacora_vs_tasks.html _espejo/index.html
+          if [ -f tod.html ]; then cp tod.html _espejo/tod.html; fi
+          printf 'User-agent: *\nDisallow: /\n' > _espejo/robots.txt
+          npx --yes wrangler@4 pages deploy _espejo \
+            --project-name aqd-7512913f --branch main --commit-dirty=true
+
       - name: Avisar si la sesión de Planner expiró
         if: always()
         env:
