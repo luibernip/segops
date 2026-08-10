@@ -789,6 +789,12 @@ def generar_html(bit, pla, r, salida, extras=None):
     .grafico canvas {{ max-height: 340px; }}
     #gCoaInv {{ height: 380px !important; max-height: 380px !important; }}
     #gResponsables {{ height: 340px !important; max-height: 340px !important; }}
+    /* En pantallas grandes caben 5 gráficas seguidas, así que "Ocurrencias vs
+       Tasks" y "Progreso de tareas" suben a la fila de "In Progress por
+       responsable". Se reordena con `order` en vez de mover el HTML para no
+       alterar nada por debajo de este ancho. */
+    .grafico-par {{ order: 1; }}
+    .grafico.ultimo {{ order: 2; }}
   }}
   @media (min-width: 2500px) {{           /* 2K/QHD y ultrapanorámicas */
     main {{ max-width: 2150px; padding: 30px 28px 70px; }}
@@ -914,13 +920,13 @@ def generar_html(bit, pla, r, salida, extras=None):
       <canvas id="gCobertura"></canvas></div>
     <div class="grafico"><h3>Progreso de tareas en Planner</h3>
       <canvas id="gProgreso"></canvas></div>
-    <div class="grafico ancho"><h3>Ocurrencias de Bitácora por mes (YTD)</h3>
+    <div class="grafico ancho ultimo"><h3>Ocurrencias de Bitácora por mes (YTD)</h3>
       <canvas id="gMes"></canvas></div>
   </div>
 
+  {seccion_listado}
   {tabla_coa}
   {secciones}
-  {seccion_listado}
   {cierra_flt}
 </main>
 <footer>Reporte generado automáticamente · Safety / AQD Dashboard · avianca</footer>
