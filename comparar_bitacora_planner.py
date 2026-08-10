@@ -795,6 +795,14 @@ def generar_html(bit, pla, r, salida, extras=None):
        alterar nada por debajo de este ancho. */
     .grafico-par {{ order: 1; }}
     .grafico.ultimo {{ order: 2; }}
+    /* Exactamente 5 columnas: con `auto-fit` la rejilla creaba 6 u 8 y las
+       cinco gráficas se quedaban cortas contra las anchas de arriba y abajo
+       (en 4K sobraban ~1100 px). Las columnas de más no se colapsan porque
+       las gráficas `ancho` las atraviesan todas.
+       Se usa `minmax(0, 1fr)` y no `1fr` porque el mínimo automático de 1fr
+       es el ancho del contenido: las leyendas ensanchaban las columnas y la
+       fila se desbordaba de la página. */
+    .graficos {{ grid-template-columns: repeat(5, minmax(0, 1fr)); }}
   }}
   @media (min-width: 2500px) {{           /* 2K/QHD y ultrapanorámicas */
     main {{ max-width: 2150px; padding: 30px 28px 70px; }}
