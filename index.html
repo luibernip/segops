@@ -178,7 +178,7 @@
 <header>
   <h1><span class="logo">avianca</span> · Bitácora AQD vs Planner Tasks</h1>
   <p>Bitácora: Occurrence type FLT · State: All Active · Year to date ·
-     COAs: AVA, GLG, TAI, LRC, AVR, TPA, TNO, GUG &nbsp;|&nbsp; Generado: 12-Aug-2026 17:41 (hora Colombia)</p>
+     COAs: AVA, GLG, TAI, LRC, AVR, TPA, TNO, GUG &nbsp;|&nbsp; Generado: 12-Aug-2026 18:42 (hora Colombia)</p>
 </header>
 <main>
   
@@ -1330,8 +1330,8 @@
           <div class="tarjeta"><div class="valor">1293</div><div class="etq">Ocurrencias GRH activas<br>(Year to Date)</div></div>
           <div class="tarjeta"><div class="valor">1204</div><div class="etq">OPEN</div></div>
           <div class="tarjeta"><div class="valor">89</div><div class="etq">In Progress</div></div>
-          <div class="tarjeta"><div class="valor">1274</div><div class="etq">Con riesgo asignado</div></div>
-          <div class="tarjeta rojo"><div class="valor">19</div><div class="etq">Sin riesgo asignado</div></div></div>
+          <div class="tarjeta"><div class="valor">1275</div><div class="etq">Con riesgo asignado</div></div>
+          <div class="tarjeta rojo"><div class="valor">18</div><div class="etq">Sin riesgo asignado</div></div></div>
           <div class="graficos">
             <div class="grafico"><h3>Ocurrencias con riesgo vs sin riesgo</h3>
               <canvas id="gRiesgoGRH"></canvas></div>
@@ -2363,7 +2363,7 @@
 <tr><td>O15139-26</td><td>GUG</td><td data-orden="2026-07-03 13:45">03-Jul-2026</td><td data-orden="2026-07-06 00:00">06-Jul-2026</td><td class="dias-alto">37</td><td>Open</td><td>Logged for Statistics</td><td>Acceptable (2)</td><td>GUG-BAGGAGE COUNT DISCREPANCY</td></tr>
 <tr><td>O12532-26</td><td>GUG</td><td data-orden="2026-05-27 17:30">27-May-2026</td><td data-orden="2026-06-03 00:00">03-Jun-2026</td><td class="dias-alto">70</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (20)</td><td>GUG- WRONG CATERING VEHICLE GRN PROCEDURE</td></tr>
 <tr><td>O8042-26</td><td>GUG</td><td data-orden="2026-03-25 12:00">25-Mar-2026</td><td data-orden="2026-04-06 00:00">06-Apr-2026</td><td class="dias-alto">128</td><td>In Progress</td><td>Assessment Only</td><td>Tolerable (21)</td><td>GUG- INADEQUATE AIRPORT INFRASTRUCTURE RAMP LIGHTNING 3A</td></tr>
-<tr><td>O18645-26</td><td>LRC</td><td data-orden="2026-08-11 12:21">11-Aug-2026</td><td data-orden="2026-08-12 00:00">12-Aug-2026</td><td>0</td><td>Open</td><td></td><td></td><td>LRC- JET BRIDGE MALFUNCTION DURING PUSHBACK PREPARATION</td></tr>
+<tr><td>O18645-26</td><td>LRC</td><td data-orden="2026-08-11 12:21">11-Aug-2026</td><td data-orden="2026-08-12 00:00">12-Aug-2026</td><td>0</td><td>Open</td><td></td><td>Acceptable (4)</td><td>LRC- JET BRIDGE A1 MALFUNCTION DURING PUSHBACK PREPARATION AT SJO</td></tr>
 <tr><td>O18639-26</td><td>LRC</td><td data-orden="2026-08-11 12:00">11-Aug-2026</td><td data-orden="2026-08-12 00:00">12-Aug-2026</td><td>0</td><td>Open</td><td></td><td></td><td>LRC- POTENTIAL OPERATIONAL RISKS DUE TO LATE BAGGAGE CHECK IN AT GATE</td></tr>
 <tr><td>O18592-26</td><td>LRC</td><td data-orden="2026-08-11 01:59">11-Aug-2026</td><td data-orden="2026-08-12 00:00">12-Aug-2026</td><td>0</td><td>Open</td><td></td><td>Acceptable (4)</td><td>LRC- CABIN CREW AND CATERING SERVICE ONBOARD WITH PASSENGERS AT JFK</td></tr>
 <tr><td>O18548-26</td><td>LRC</td><td data-orden="2026-08-10 15:00">10-Aug-2026</td><td data-orden="2026-08-12 00:00">12-Aug-2026</td><td>0</td><td>In Progress</td><td>Assessment Only</td><td>Acceptable (4)</td><td>LRC- BAGGAGE UNSECURED DISCREPANCY IN RAMP AT ORD</td></tr>
@@ -2817,7 +2817,7 @@ const chMes = new Chart(document.getElementById("gMes"), {
 // ---------------------------------------------------------------------------
 // Pestaña CBN: gráficas y conmutador de pestañas
 // ---------------------------------------------------------------------------
-const DX = {"CBN": {"riesgo": {"Con riesgo": 70, "Sin riesgo asignado": 10}, "dias": {"labels": ["AVA", "GLG", "TAI", "AVR", "Otros"], "valores": [12.9, 17.5, 15.0, 7.0, 1.4]}}, "FRM": {"riesgo": {"Con riesgo": 449, "Sin riesgo asignado": 10}, "dias": {"labels": ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "Otros"], "valores": [97.7, 104.1, 114.7, 7.0, 155.0, 117.8, 58.4]}}, "GRH": {"riesgo": {"Con riesgo": 1274, "Sin riesgo asignado": 19}, "dias": {"labels": ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "TNO", "GUG", "Otros"], "valores": [56.7, 21.8, 15.7, 12.8, 85.3, 94.7, 23.3, 37.8, 58.2]}}};
+const DX = {"CBN": {"riesgo": {"Con riesgo": 70, "Sin riesgo asignado": 10}, "dias": {"labels": ["AVA", "GLG", "TAI", "AVR", "Otros"], "valores": [12.9, 17.5, 15.0, 7.0, 1.4]}}, "FRM": {"riesgo": {"Con riesgo": 449, "Sin riesgo asignado": 10}, "dias": {"labels": ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "Otros"], "valores": [97.7, 104.1, 114.7, 7.0, 155.0, 117.8, 58.4]}}, "GRH": {"riesgo": {"Con riesgo": 1275, "Sin riesgo asignado": 18}, "dias": {"labels": ["AVA", "GLG", "TAI", "LRC", "AVR", "TPA", "TNO", "GUG", "Otros"], "valores": [56.7, 21.8, 15.7, 12.8, 85.3, 94.7, 23.3, 37.8, 58.2]}}};
 Object.entries(DX || {}).forEach(([cod, d]) => {
   const cR = document.getElementById("gRiesgo" + cod);
   const cD = document.getElementById("gDias" + cod);
