@@ -1204,6 +1204,57 @@ document.querySelector(".graficos").before(barraG);
 // ---------------------------------------------------------------------------
 const normalizar = s => s.toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g, "");
 
+// --- fechas en los filtros ---------------------------------------------
+// Las celdas de fecha se ven como "14-Aug-2026" pero llevan el valor ISO en
+// data-orden. Sin esto el filtro solo aceptaba el texto visible, así que
+// escribir "2026-08-14" no devolvía nada. Aquí se interpreta lo que escribe
+// el usuario y se convierte en un rango ISO contra el que comparar.
+const relleno = n => String(n).padStart(2, "0");
+
+// "2026" | "2026-08" | "2026-08-14" | "14/08/2026" | "08/2026" -> partes
+function partesFecha(txt) {{
+  const t = txt.trim().replace(/\\s+/g, "");
+  if (!t) return null;
+  let m;
+  if (m = t.match(/^(\\d\\d\\d\\d)$/))                        return {{y:+m[1]}};
+  if (m = t.match(/^(\\d\\d\\d\\d)[-\\/](\\d\\d?)$/))            return {{y:+m[1], m:+m[2]}};
+  if (m = t.match(/^(\\d\\d\\d\\d)[-\\/](\\d\\d?)[-\\/](\\d\\d?)$/)) return {{y:+m[1], m:+m[2], d:+m[3]}};
+  if (m = t.match(/^(\\d\\d?)[-\\/](\\d\\d\\d\\d)$/))            return {{y:+m[2], m:+m[1]}};
+  if (m = t.match(/^(\\d\\d?)[-\\/](\\d\\d?)[-\\/](\\d\\d\\d\\d)$/)) return {{y:+m[3], m:+m[2], d:+m[1]}};
+  return null;
+}}
+
+// Una fecha parcial cubre todo su periodo: "2026-08" va del 01 al 31.
+function limitesFecha(p) {{
+  if (!p) return null;
+  if (p.m && (p.m < 1 || p.m > 12)) return null;
+  const m1 = p.m || 1, m2 = p.m || 12;
+  const ultimo = new Date(p.y, m2, 0).getDate();
+  if (p.d && (p.d < 1 || p.d > ultimo)) return null;
+  const d1 = p.d || 1, d2 = p.d || ultimo;
+  return [p.y + "-" + relleno(m1) + "-" + relleno(d1),
+          p.y + "-" + relleno(m2) + "-" + relleno(d2)];
+}}
+
+// Devuelve [desde, hasta] en ISO, o null si el texto no es una fecha (en cuyo
+// caso el filtro cae de vuelta a la búsqueda por texto: "Aug" sigue sirviendo).
+function rangoFecha(txt) {{
+  const t = txt.trim();
+  if (!t) return null;
+  if (t.includes("..")) {{
+    const p = t.split("..");
+    if (p.length !== 2) return null;
+    const a = p[0].trim(), b = p[1].trim();
+    const la = a ? limitesFecha(partesFecha(a)) : null;
+    const lb = b ? limitesFecha(partesFecha(b)) : null;
+    if (a && !la) return null;          // extremo escrito pero ilegible
+    if (b && !lb) return null;
+    if (!la && !lb) return null;        // ".." a secas no filtra nada
+    return [la ? la[0] : "0000-01-01", lb ? lb[1] : "9999-12-31"];
+  }}
+  return limitesFecha(partesFecha(t));
+}}
+
 document.querySelectorAll("details.seccion").forEach(sec => {{
   const table = sec.querySelector("table");
   if (!table || !table.tHead || !table.tBodies[0]) return;
@@ -1241,20 +1292,33 @@ document.querySelectorAll("details.seccion").forEach(sec => {{
   sec.querySelector(".tabla-wrap").before(barra);
 
   // --- fila de filtros por columna ---
+  // Son columnas de fecha las que llevan el valor ISO en data-orden.
+  const esFecha = ths.map((_, i) =>
+      filas.some(r => r.cells[i] &&
+                 /^\\d\\d\\d\\d-\\d\\d-\\d\\d/.test(r.cells[i].dataset.orden || "")));
   const trF = table.tHead.insertRow();
   trF.className = "fila-filtros";
-  ths.forEach(() => {{
+  ths.forEach((_, i) => {{
     const th = document.createElement("th");
     const inp = document.createElement("input");
     inp.type = "search";
-    inp.placeholder = "Filtrar…";
+    if (esFecha[i]) {{
+      inp.placeholder = "aaaa-mm-dd…";
+      inp.title = "Fechas: 2026-08-14 · 2026-08 (mes entero) · 2026 (año) · "
+                + "14/08/2026 · rango 2026-08-01..2026-08-31 · "
+                + "extremo abierto ..2026-08-31 o 2026-08-01..";
+    }} else {{
+      inp.placeholder = "Filtrar…";
+    }}
     inp.addEventListener("input", () => aplicar());
     th.appendChild(inp);
     trF.appendChild(th);
   }});
 
   function aplicar() {{
-    const filtros = [...trF.cells].map(c => normalizar(c.firstChild.value || ""));
+    const crudos = [...trF.cells].map(c => c.firstChild.value || "");
+    const filtros = crudos.map(normalizar);
+    const rangos = crudos.map((v, i) => esFecha[i] ? rangoFecha(v) : null);
     let visibles = 0;
     filas.forEach(r => {{
       let ok = true;
@@ -1263,7 +1327,13 @@ document.querySelectorAll("details.seccion").forEach(sec => {{
         if (v !== coaActivo) ok = false;
       }}
       if (ok) filtros.forEach((f, i) => {{
-        if (f && !normalizar(r.cells[i].textContent).includes(f)) ok = false;
+        if (!f) return;
+        if (rangos[i]) {{           // fecha reconocida: comparar contra el ISO
+          const iso = (r.cells[i].dataset.orden || "").slice(0, 10);
+          if (!iso || iso < rangos[i][0] || iso > rangos[i][1]) ok = false;
+          return;
+        }}
+        if (!normalizar(r.cells[i].textContent).includes(f)) ok = false;
       }});
       r.style.display = ok ? "" : "none";
       if (ok) visibles++;
@@ -1286,15 +1356,21 @@ document.querySelectorAll("details.seccion").forEach(sec => {{
         return (td.dataset.orden !== undefined ? td.dataset.orden
                                                : td.textContent.trim());
       }};
+      // Una cadena es numérica solo si lo es POR COMPLETO. Antes bastaba con
+      // que empezara por dígito, así que las fechas ISO de data-orden
+      // ("2026-08-14 13:01") caían en la rama numérica: parseFloat las reducía
+      // a 2026 y ordenar por fecha no movía nada dentro del mismo año.
+      const esIso = s => /^\\d\\d\\d\\d-\\d\\d-\\d\\d/.test(s);
+      const esNumero = s => /^[-+]?[\\d.,]+%?$/.test(s.trim());
       filas.sort((a, b) => {{
         const va = clave(a), vb = clave(b);
         if (va === "" && vb !== "") return 1;    // vacíos siempre al final
         if (vb === "" && va !== "") return -1;
-        const na = parseFloat(va.replace(",", ".")),
-              nb = parseFloat(vb.replace(",", "."));
         let c;
-        if (!isNaN(na) && !isNaN(nb) && /^[-\\d.,%]/.test(va) && /^[-\\d.,%]/.test(vb))
-          c = na - nb;
+        if (esIso(va) && esIso(vb))              // ISO: comparación directa
+          c = va < vb ? -1 : va > vb ? 1 : 0;
+        else if (esNumero(va) && esNumero(vb))
+          c = parseFloat(va.replace(",", ".")) - parseFloat(vb.replace(",", "."));
         else
           c = normalizar(va).localeCompare(normalizar(vb), "es");
         return asc ? c : -c;
