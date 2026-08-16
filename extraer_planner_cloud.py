@@ -77,7 +77,7 @@ def log(msg):
 def salir_suave(motivo):
     log(f"AVISO: {motivo}")
     log("Se conserva la última foto de Planner (planner_raw.txt del repo). "
-        "Para renovarla: correr 'Actualizar Reporte.command' en el Mac.")
+        "Para renovarla: correr 'python renovar_planner.py' en local.")
     # marca para que el workflow avise (crea un issue en GitHub) que la
     # sesión de Planner necesita renovarse
     (CARPETA / "_planner_expirado.flag").write_text(motivo, encoding="utf-8")

@@ -12,6 +12,7 @@ Uso:  python3 renovar_planner.py
 import base64
 import gzip
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -19,14 +20,28 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
+# La consola de Windows usa cp1252 y no puede imprimir el ✔ del mensaje
+# final. En Mac/Linux (UTF-8) no cambia nada.
+if (sys.stdout.encoding or "").lower().replace("-", "") != "utf8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 CARPETA = Path(__file__).resolve().parent
 PERFIL = CARPETA / ".perfil_navegador"
 URL_PLANNER = ("https://planner.cloud.microsoft/webui/plan/"
                "yC2AO9h21ku3dDlygaHj6WQAAHdx/view/grid"
                "?tid=a2addd3e-8397-4579-ba30-7a38803fc3bf")
 REPO = "luibernip/segops"
-GH = "/opt/homebrew/bin/gh"
 ESPERA_MAX_SEG = 600           # hasta 10 minutos para que inicies sesión
+
+# Rutas donde suele quedar el GitHub CLI si no está en el PATH. La del ZIP
+# portable importa: es la única instalable sin permisos de administrador.
+GH_CANDIDATOS = (
+    "/opt/homebrew/bin/gh",                              # Mac (Homebrew)
+    "/usr/local/bin/gh",                                 # Mac (Intel)
+    r"C:\Program Files\GitHub CLI\gh.exe",               # Windows (MSI)
+    str(Path.home() /
+        r"AppData\Local\Programs\GitHub CLI\bin\gh.exe"),  # Windows (ZIP)
+)
 
 DOMINIOS_COOKIES = ("microsoftonline", "cloud.microsoft", "msauth",
                     "msftauth", "planner")
@@ -77,10 +92,29 @@ def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def buscar_gh():
+    """Ubica el GitHub CLI en el PATH o en las rutas típicas de cada
+    sistema. Se resuelve ANTES de abrir el navegador para no descubrir
+    que falta después de diez minutos esperando el inicio de sesión."""
+    ruta = shutil.which("gh")
+    if ruta:
+        return ruta
+    for candidato in GH_CANDIDATOS:
+        if Path(candidato).exists():
+            return candidato
+    sys.exit("No se encontró el GitHub CLI (gh). Instálalo y corre "
+             "'gh auth login' antes de renovar la sesión.")
+
+
 def main():
+    gh = buscar_gh()
+
     if not PERFIL.exists():
-        sys.exit("No existe .perfil_navegador. Corre primero una "
-                 "actualización normal para crear el perfil.")
+        # Perfil nuevo (por ejemplo, la primera vez en un equipo distinto):
+        # se crea vacío y el inicio de sesión de abajo lo deja autenticado.
+        log("No había perfil de navegador; se crea uno nuevo. "
+            "Vas a tener que iniciar sesión en Microsoft.")
+        PERFIL.mkdir(parents=True, exist_ok=True)
 
     with sync_playwright() as pw:
         ctx = pw.chromium.launch_persistent_context(
@@ -139,10 +173,10 @@ def main():
     nombres = ["MS_SESION", "MS_SESION_2", "MS_SESION_3"]
     for i, nombre in enumerate(nombres):
         if i < len(pedazos):
-            subprocess.run([GH, "secret", "set", nombre, "-R", REPO],
+            subprocess.run([gh, "secret", "set", nombre, "-R", REPO],
                            input=pedazos[i], check=True)
         else:
-            subprocess.run([GH, "secret", "delete", nombre, "-R", REPO],
+            subprocess.run([gh, "secret", "delete", nombre, "-R", REPO],
                            capture_output=True)
     log(f"✔ Sesión de Planner renovada y subida ({len(pedazos)} secreto(s)). "
         "La nube volverá a refrescar Planner en la próxima corrida.")

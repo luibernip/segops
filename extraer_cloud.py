@@ -145,7 +145,9 @@ def guardar_csv(datos, ruta):
             est_cod.get(d["estado"], limpiar(d["estado"])),
             inv_cod.get(d["inv"], limpiar(d["inv"])),
             limpiar(d["riesgo"]), limpiar(d["titulo"]), limpiar(d["mat"])]))
-    Path(ruta).write_text("\n".join(lineas), encoding="utf-8")
+    # newline="\n": sin esto, en Windows los saltos salen como CRLF y el CSV
+    # aparece cambiado entero frente al que genera la nube (Linux, LF).
+    Path(ruta).write_text("\n".join(lineas), encoding="utf-8", newline="\n")
 
 
 def main():

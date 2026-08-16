@@ -43,6 +43,12 @@ from pathlib import Path
 
 import pandas as pd
 
+# La consola de Windows usa cp1252 y no puede imprimir el ✔ del mensaje
+# final: sin esto el script termina en excepción aunque el reporte ya haya
+# quedado escrito. En Mac/Linux (UTF-8) no cambia nada.
+if (sys.stdout.encoding or "").lower().replace("-", "") != "utf8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 # ---------------------------------------------------------------------------
 # CONFIGURACIÓN
 # ---------------------------------------------------------------------------
@@ -1301,7 +1307,9 @@ document.querySelectorAll("details.seccion").forEach(sec => {{
 </body>
 </html>"""
 
-    Path(salida).write_text(html, encoding="utf-8")
+    # newline="\n": sin esto, en Windows el HTML sale con CRLF y el index.html
+    # publicado aparecería cambiado entero frente al que genera la nube (LF).
+    Path(salida).write_text(html, encoding="utf-8", newline="\n")
     return salida
 
 

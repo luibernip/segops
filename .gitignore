@@ -1,0 +1,15 @@
+# Perfil de navegador de Playwright: miles de archivos y una sesión
+# personal de Microsoft. Nunca debe subirse (el repo es público).
+.perfil_navegador/
+
+# Salidas del pipeline que no se publican tal cual
+# (index.html sí se versiona; es la copia de reporte_bitacora_vs_tasks.html)
+reporte_bitacora_vs_tasks.html
+bitacora.csv
+planner.csv
+_planner_expirado.flag
+_espejo/
+
+# Locales de la copia de trabajo
+.claude/
+__pycache__/

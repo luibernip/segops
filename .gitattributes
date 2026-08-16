@@ -1,0 +1,4 @@
+# El repo lo genera la nube en Linux (LF) y también se edita en Windows.
+# Normalizar a LF al confirmar evita que un commit hecho desde Windows marque
+# archivos enteros como cambiados y termine peleando con la corrida horaria.
+* text=auto eol=lf
