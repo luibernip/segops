@@ -685,9 +685,9 @@ def generar_html(bit, pla, r, salida, extras=None):
           <div class="tarjetas">{tarjetas_t}</div>
           <div class="graficos">
             <div class="grafico"><h3>Ocurrencias con riesgo vs sin riesgo</h3>
-              <canvas id="gRiesgo{codigo}"></canvas></div>
+              <div class="lienzo"><canvas id="gRiesgo{codigo}"></canvas></div></div>
             <div class="grafico"><h3>Días promedio abierta por COA</h3>
-              <canvas id="gDias{codigo}"></canvas></div>
+              <div class="lienzo"><canvas id="gDias{codigo}"></canvas></div></div>
           </div>
           {seccion("≡", f"Listado completo de ocurrencias {codigo} con nivel de riesgo",
                    f"Todas las ocurrencias {codigo} activas (Open + In Progress), Year to Date",
@@ -786,6 +786,16 @@ def generar_html(bit, pla, r, salida, extras=None):
   #gCoaInv {{ height: 340px !important; max-height: 340px !important; }}
   #gResponsables {{ height: 300px !important; max-height: 300px !important; }}
 
+  /* Gráficas de las pestañas por tipo (CBN, FRM, GRH). Necesitan un alto
+     definido: con la proporción automática, la de barras medía la mitad del
+     ancho de su columna mientras la dona topaba con max-height, y como las dos
+     tarjetas de la fila se estiran a la más alta, la de barras quedaba medio
+     vacía. El hueco crecía al estrecharse la columna (158 px sobrantes a 768
+     px de ventana). Con un alto fijo aquí y maintainAspectRatio:false, el
+     lienzo llena la tarjeta en cualquier ancho. */
+  .lienzo {{ position: relative; height: 300px; }}
+  .lienzo canvas {{ max-height: none; }}
+
   /* Pantallas grandes: aprovechar el ancho en vez de dejar medio monitor en
      blanco. Hasta 1080p (y la mayoría de portátiles) todo queda igual que
      antes; a partir de ahí el contenido crece por tramos, y las rejillas de
@@ -793,6 +803,7 @@ def generar_html(bit, pla, r, salida, extras=None):
   @media (min-width: 2000px) {{
     main {{ max-width: 1700px; }}
     .grafico canvas {{ max-height: 340px; }}
+    .lienzo {{ height: 340px; }}
     #gCoaInv {{ height: 380px !important; max-height: 380px !important; }}
     #gResponsables {{ height: 340px !important; max-height: 340px !important; }}
     /* En pantallas grandes caben 5 gráficas seguidas, así que "Ocurrencias vs
@@ -807,12 +818,17 @@ def generar_html(bit, pla, r, salida, extras=None):
        las gráficas `ancho` las atraviesan todas.
        Se usa `minmax(0, 1fr)` y no `1fr` porque el mínimo automático de 1fr
        es el ancho del contenido: las leyendas ensanchaban las columnas y la
-       fila se desbordaba de la página. */
-    .graficos {{ grid-template-columns: repeat(5, minmax(0, 1fr)); }}
+       fila se desbordaba de la página.
+       Va acotado a #tab-flt: es la única pestaña con cinco gráficas. En las de
+       tipo (CBN, FRM, GRH), que solo tienen dos, las cinco columnas las dejaban
+       en 287 px con tres columnas vacías al lado; sin la regla vuelven al
+       auto-fit y ocupan media fila cada una. */
+    #tab-flt .graficos {{ grid-template-columns: repeat(5, minmax(0, 1fr)); }}
   }}
   @media (min-width: 2500px) {{           /* 2K/QHD y ultrapanorámicas */
     main {{ max-width: 2150px; padding: 30px 28px 70px; }}
     .grafico canvas {{ max-height: 380px; }}
+    .lienzo {{ height: 380px; }}
     #gCoaInv {{ height: 420px !important; max-height: 420px !important; }}
     #gResponsables {{ height: 380px !important; max-height: 380px !important; }}
     .tarjeta .valor {{ font-size: 36px; }}
@@ -1111,40 +1127,67 @@ const chMes = new Chart(document.getElementById("gMes"), {{
 }});
 
 // ---------------------------------------------------------------------------
-// Pestaña CBN: gráficas y conmutador de pestañas
+// Pestañas por tipo (CBN, FRM, GRH): gráficas y conmutador de pestañas
 // ---------------------------------------------------------------------------
+// Las gráficas de estas pestañas NO se crean al cargar la página. Sus paneles
+// nacen con display:none, así que Chart.js mediría un contenedor de 0x0 y
+// dejaría "width:0;height:0" en el estilo en línea del canvas. De ahí no se
+// vuelve: el estilo en línea gana sobre el CSS y la instancia queda fijada en
+// 0x0 aunque después se llame a resize(). El resultado era una tarjeta vacía,
+// o a medio llenar si algún redimensionado posterior la despertaba tarde.
+// Por eso cada pestaña construye las suyas la primera vez que se abre, cuando
+// el panel ya tiene tamaño real.
 const DX = {datos_extras_js};
+const graficasPendientes = new Map();
+
 Object.entries(DX || {{}}).forEach(([cod, d]) => {{
-  const cR = document.getElementById("gRiesgo" + cod);
-  const cD = document.getElementById("gDias" + cod);
-  if (!cR || !cD) return;
-  new Chart(cR, {{
-    type: "doughnut",
-    data: {{ labels: Object.keys(d.riesgo),
-      datasets: [{{ data: Object.values(d.riesgo),
-        backgroundColor: [C.azul_claro, C.rojo], borderWidth: 2 }}] }},
-    options: {{ cutout: "62%", plugins: {{ legend: {{ position: "bottom" }} }} }}
-  }});
-  new Chart(cD, {{
-    type: "bar",
-    data: {{ labels: d.dias.labels,
-      datasets: [{{ label: "Días promedio", data: d.dias.valores,
-        backgroundColor: d.dias.valores.map(colorDias),
-        borderRadius: 6 }}] }},
-    options: {{ plugins: {{ legend: {{ display: false }}, datalabels: etiquetaArriba }},
-      scales: {{ y: {{ beginAtZero: true, grace: "10%",
-                       title: {{ display: true, text: "días" }} }} }} }}
+  graficasPendientes.set(cod.toLowerCase(), () => {{
+    const cR = document.getElementById("gRiesgo" + cod);
+    const cD = document.getElementById("gDias" + cod);
+    if (!cR || !cD) return;
+    new Chart(cR, {{
+      type: "doughnut",
+      data: {{ labels: Object.keys(d.riesgo),
+        datasets: [{{ data: Object.values(d.riesgo),
+          backgroundColor: [C.azul_claro, C.rojo], borderWidth: 2 }}] }},
+      options: {{ maintainAspectRatio: false, cutout: "62%",
+        plugins: {{ legend: {{ position: "bottom" }} }} }}
+    }});
+    new Chart(cD, {{
+      type: "bar",
+      data: {{ labels: d.dias.labels,
+        datasets: [{{ label: "Días promedio", data: d.dias.valores,
+          backgroundColor: d.dias.valores.map(colorDias),
+          borderRadius: 6 }}] }},
+      options: {{ maintainAspectRatio: false,
+        plugins: {{ legend: {{ display: false }}, datalabels: etiquetaArriba }},
+        scales: {{ y: {{ beginAtZero: true, grace: "10%",
+                         title: {{ display: true, text: "días" }} }} }} }}
+    }});
   }});
 }});
 
+function mostrarTab(nombre) {{
+  document.querySelectorAll(".panel-tab").forEach(x => x.classList.remove("activo"));
+  const panel = document.getElementById("tab-" + nombre);
+  if (!panel) return;
+  panel.classList.add("activo");
+  const construir = graficasPendientes.get(nombre);
+  if (construir) {{
+    graficasPendientes.delete(nombre);     // solo la primera vez
+    // Forzar el cálculo del layout del panel recién mostrado ANTES de crear
+    // las gráficas. Sin esto Chart.js mide el canvas cuando todavía no tiene
+    // tamaño y se queda con los 300x150 por defecto. Un requestAnimationFrame
+    // no sirve: corre antes de que el navegador rehaga el layout.
+    void panel.offsetHeight;
+    construir();
+  }}
+}}
+
 document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => {{
   document.querySelectorAll(".tab-btn").forEach(x => x.classList.remove("activo"));
-  document.querySelectorAll(".panel-tab").forEach(x => x.classList.remove("activo"));
   b.classList.add("activo");
-  document.getElementById("tab-" + b.dataset.tab).classList.add("activo");
-  // las gráficas creadas en una pestaña oculta necesitan re-dimensionarse
-  requestAnimationFrame(() =>
-      Object.values(Chart.instances).forEach(c => c.resize()));
+  mostrarTab(b.dataset.tab);
 }}));
 
 // ---------------------------------------------------------------------------
